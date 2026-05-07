@@ -26,11 +26,13 @@ All implementation files live in the feature's documentation directory
 
 | File                       | Purpose                                                          |
 |----------------------------|------------------------------------------------------------------|
-| `<feature>-impl-plan.md`   | Two-section implementation plan: module relationships + build order. Temporary — deleted at finalize. |
+| `<feature>-impl-plan.org`   | Two-section implementation plan: module relationships + build order. Temporary — deleted at finalize. |
 | `review-plan.org`          | Emacs org-mode file listing changed files grouped by concern     |
-| `review-notes.md`          | User's review notes — first-level headings per file              |
-| `review-notes-resolved.md` | Archive of resolved review notes with resolution explanations    |
-| `<feature>-review.md`      | Self-review output (persists for user reference)                 |
+| `review-notes.org`          | User's review notes — first-level headings per file              |
+| `review-notes-resolved.org` | Archive of resolved review notes with resolution explanations    |
+| `<feature>-review.org`      | Self-review output (persists for user reference)                 |
+
+**File format:** All working files use **Emacs Org mode** (`.org`), not Markdown. Use Org syntax: `*` / `**` / `***` for headings, `*bold*`, `/italic/`, `=verbatim=`, `~code~`, `- ` for lists, `- [ ]` for checkboxes. For code blocks use `#+begin_src lang` / `#+end_src`. Do NOT slip into Markdown syntax (`##` headings, `**bold**`, triple backticks). The flow instruction files themselves (this file) remain Markdown — only the per-feature working files are Org. The `review-plan.org` was already Org.
 
 ---
 
@@ -38,36 +40,36 @@ All implementation files live in the feature's documentation directory
 
 ### 1. Plan — automatic first step of `implement <feature-name>`
 
-Before writing code, produce `<feature>-impl-plan.md` using two
+Before writing code, produce `<feature>-impl-plan.org` using two
 sequential subagents. This file has two sections.
 
 **Step 1a — Module Relationship subagent.** Read the finalized design
 and the existing codebase (supervision trees, module boundaries,
 behaviours, protocols, data flow). Write section 1 of
-`<feature>-impl-plan.md`:
+`<feature>-impl-plan.org`:
 
-```markdown
-## Module Relationships
+```org
+* Module Relationships
 
-### New Modules
+** New Modules
 (Each new module with its single responsibility.)
 
-### Modified Modules
+** Modified Modules
 (Existing modules being touched and what changes in each.)
 
-### Dependencies
+** Dependencies
 (How modules relate: new→new, new→existing. Who calls whom,
 who subscribes to what, who supervises whom.)
 
-### Interfaces & Contracts
+** Interfaces & Contracts
 (Behaviours, protocols, struct shapes, and formal specs — JSON
 Schema, OpenAPI, AsyncAPI — to define before implementation.
 These are the integration seams.)
 
-### Supervision Tree Placement
+** Supervision Tree Placement
 (Where new processes sit in the OTP supervision tree.)
 
-### Data Flow
+** Data Flow
 (Which process sends what to whom, through which mechanism —
 direct call, PubSub, message queue, ETS.)
 ```
@@ -77,24 +79,24 @@ describes the topology.
 
 **Step 1b — Plan subagent.** Read the module relationships (output of
 1a) and the finalized design. Write section 2 of
-`<feature>-impl-plan.md`:
+`<feature>-impl-plan.org`:
 
-```markdown
-## Implementation Plan
+```org
+* Implementation Plan
 
-### Step Order
+** Step Order
 (Numbered steps, each referencing modules from section 1.
 Dependencies between steps noted — what blocks what.)
 
-### Parallel Opportunities
+** Parallel Opportunities
 (Which steps can be built simultaneously.)
 
-### Integration Checkpoints
+** Integration Checkpoints
 (After which steps the modules should be wirable end-to-end.
 E.g. "after steps 1–3, the data layer and PubSub are connected
 and can be tested together.")
 
-### Formal Specs to Produce First
+** Formal Specs to Produce First
 (Which JSON Schema / OpenAPI / AsyncAPI / behaviour definitions
 should be written before any implementation code, because other
 modules depend on them.)
@@ -102,7 +104,7 @@ modules depend on them.)
 
 ### 2. Implement — automatic after step 1
 
-Follow the plan from `<feature>-impl-plan.md`. For each step in order:
+Follow the plan from `<feature>-impl-plan.org`. For each step in order:
 - Define interfaces and formal specs first (as identified in the plan)
 - Write the implementation
 - Write tests for the new code's key behaviors and edge cases — do not
@@ -193,12 +195,12 @@ but makes **no edits**. Each produces a structured report with severity
 ratings (Critical / High / Medium / Low / Info).
 
 Claude collates and deduplicates the reports into
-`<feature>-review.md` in the feature documentation directory. This file
+`<feature>-review.org` in the feature documentation directory. This file
 persists — the user may consult it to understand what was auto-fixed.
 
 ### 4. Fix — automatic after step 3
 
-Read `<feature>-review.md`. For each issue:
+Read `<feature>-review.org`. For each issue:
 - Fixable → apply the fix
 - Blocking (design ambiguity, out of scope) → raise for discussion
 
@@ -225,16 +227,16 @@ Create `review-plan.org` in the feature documentation directory.
   "do not review", without checkboxes.
 - Group files by logical concern, not by directory.
 
-Then create `review-notes.md` with first-level headings for each file
+Then create `review-notes.org` with first-level headings for each file
 from `review-plan.org`, listed in the same order. Each heading uses
-the full path from the project root, wrapped in backticks — e.g.
-`## \`path/to/file.ex\``. The user fills in notes under each heading.
+the full path from the project root, wrapped in `=verbatim=` — e.g.
+`** =path/to/file.ex=`. The user fills in notes under each heading.
 
 ### 6. Iterate — `loop`
 
-**Step 6a — Apply fixes.** Read `review-notes.md`. For each note:
+**Step 6a — Apply fixes.** Read `review-notes.org`. For each note:
 - Apply the fix or change requested
-- Move the note to `review-notes-resolved.md`, appending a
+- Move the note to `review-notes-resolved.org`, appending a
   `**Resolved:**` subsection explaining what was done
 
 **Trailing Abstraction Minimalist check.** After applying fixes, run
@@ -244,7 +246,7 @@ violations before validation.
 
 **Step 6b — Fix Validator subagent.** After applying all fixes, launch
 a subagent that reads the diff of changes made in this iteration,
-`review-notes.md`, and the finalized design. It checks:
+`review-notes.org`, and the finalized design. It checks:
 - Did each fix actually address the review note it claims to resolve?
 - Did any fix introduce new issues or regress previously working code?
 - Do the changes still match the finalized design?
@@ -261,7 +263,7 @@ Issues found are reported to the user alongside the review-plan update.
 
 Re-run the test/lint suite.
 
-If `review-notes.md` still has unresolved notes, suggest **`loop`**.
+If `review-notes.org` still has unresolved notes, suggest **`loop`**.
 If all notes are resolved, suggest **`finalize`**.
 
 ### 7. Finalize — `finalize`
@@ -281,11 +283,11 @@ The user can choose to address them now (back to step 6) or defer them.
 
 **Step 7b — Clean up.** Delete all implementation flow files from the
 feature documentation directory:
-- `<feature>-impl-plan.md`
+- `<feature>-impl-plan.org`
 - `review-plan.org`
-- `review-notes.md`
-- `review-notes-resolved.md`
-- `<feature>-review.md`
+- `review-notes.org`
+- `review-notes-resolved.org`
+- `<feature>-review.org`
 
 Suggest **`commit`**.
 
@@ -316,10 +318,10 @@ session, interrupted work):
 1. Read all implementation files in the feature documentation directory
 2. Check git status/diff to see what code changes exist
 3. Report current state: which step was last completed, what remains
-4. If `review-notes.md` has unprocessed notes → suggest **`loop`**
+4. If `review-notes.org` has unprocessed notes → suggest **`loop`**
 5. If implementation is done but no review files exist → run step 3
    (self-review) onward
-6. If `<feature>-impl-plan.md` exists but no code changes → resume
+6. If `<feature>-impl-plan.org` exists but no code changes → resume
    from step 2 (implement)
 7. If no files exist → start from step 1 (plan)
 
@@ -407,9 +409,9 @@ Examples:
 After finalizing a design: **`implement <feature-name>`**
 
 Steps 1–5 run automatically: plan → implement → self-review → fix →
-create review-plan.org + review-notes.md.
+create review-plan.org + review-notes.org.
 
-### User fills in review-notes.md, then
+### User fills in review-notes.org, then
 
 Prompt: **`loop`** — Claude applies fixes, updates review-plan.org,
 archives resolved notes

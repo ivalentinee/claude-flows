@@ -10,85 +10,87 @@ For a feature named `<feature-name>`, create:
 
 | File | Purpose |
 |------|---------|
-| `<feature-name>.md` | Design doc — describes what the feature does and how it should be implemented. Grows richer each loop iteration. |
-| `<feature-name>-questions.md` | Open questions — things that cannot be decided without user input. Items are moved to `-resolved.md` as answers arrive. When empty, delete the file. |
-| `<feature-name>-criticism.md` | Criticisms and concerns about the current design. Items are moved to `-resolved.md` as they are resolved. When empty, delete the file. |
-| `<feature-name>-answers.md` | Written by the user. Three sections (see below). Read by Claude at the start of each loop iteration. Never modified by Claude. |
-| `<feature-name>-resolved.md` | Archive of resolved questions and criticisms. Two sections: `Questions` and `Criticism`. Append-only — never remove entries. Created on first resolution. |
-| `<feature-name>-critic-context.md` | Persistent working memory for the Critic subagent. Tracks active concerns, resolved concerns, and patterns noticed across iterations. Read and updated by the Critic on every invocation. |
-| `<feature-name>-boundary-context.md` | Persistent working memory for the Boundary Analyst subagent. Tracks identified subsystem boundaries, their interfaces, and how they evolve across iterations. |
-| `<feature-name>-journal.md` | Shared append-only design journal. Every subagent appends a timestamped, role-tagged entry summarizing its key observations. Gives all roles cross-iteration context in one place. |
+| `<feature-name>.org` | Design doc — describes what the feature does and how it should be implemented. Grows richer each loop iteration. |
+| `<feature-name>-questions.org` | Open questions — things that cannot be decided without user input. Items are moved to `-resolved.org` as answers arrive. When empty, delete the file. |
+| `<feature-name>-criticism.org` | Criticisms and concerns about the current design. Items are moved to `-resolved.org` as they are resolved. When empty, delete the file. |
+| `<feature-name>-answers.org` | Written by the user. Three sections (see below). Read by Claude at the start of each loop iteration. Never modified by Claude. |
+| `<feature-name>-resolved.org` | Archive of resolved questions and criticisms. Two sections: `Questions` and `Criticism`. Append-only — never remove entries. Created on first resolution. |
+| `<feature-name>-critic-context.org` | Persistent working memory for the Critic subagent. Tracks active concerns, resolved concerns, and patterns noticed across iterations. Read and updated by the Critic on every invocation. |
+| `<feature-name>-boundary-context.org` | Persistent working memory for the Boundary Analyst subagent. Tracks identified subsystem boundaries, their interfaces, and how they evolve across iterations. |
+| `<feature-name>-journal.org` | Shared append-only design journal. Every subagent appends a timestamped, role-tagged entry summarizing its key observations. Gives all roles cross-iteration context in one place. |
 
 All files start with **headings only** — no content. Content is added by Claude (design/questions/criticism/resolved) or the user (answers) as the loop progresses.
 
+**File format:** All working files use **Emacs Org mode** (`.org`), not Markdown. Use Org syntax: `*` / `**` / `***` for headings, `*bold*`, `/italic/`, `=verbatim=`, `~code~`, `- ` for lists, `- [ ]` for checkboxes. For code blocks use `#+begin_src lang` / `#+end_src`. Do NOT slip into Markdown syntax (`##` headings, `**bold**`, triple backticks). The flow instruction files themselves (this file) remain Markdown — only the per-feature working files are Org.
+
 ---
 
-## `-answers.md` Structure
+## `-answers.org` Structure
 
-```markdown
-# Answers
+```org
+* Answers
 
-## Considerations
+** Considerations
 
 (User writes any context, constraints, or design preferences that
 should shape the implementation — things that are neither direct
 answers to questions nor responses to criticism.)
 
-## Questions
+** Questions
 
 (After the first loop iteration: open questions copied here from
-`-questions.md` as a reference. User writes answers beneath each one.)
+=-questions.org= as a reference. User writes answers beneath each one.)
 
-## Criticism
+** Criticism
 
 (After the first loop iteration: open criticisms copied here from
-`-criticism.md` as a reference. User writes responses beneath each one.)
+=-criticism.org= as a reference. User writes responses beneath each one.)
 ```
 
-On the very first pass (step 1), `-answers.md` has headings only. After every subsequent loop iteration (step 3), Claude recreates it with the still-open questions and criticisms pre-populated under their headings, ready for the user to answer in place.
+On the very first pass (step 1), `-answers.org` has headings only. After every subsequent loop iteration (step 3), Claude recreates it with the still-open questions and criticisms pre-populated under their headings, ready for the user to answer in place.
 
 ---
 
-## `-resolved.md` Structure
+## `-resolved.org` Structure
 
-```markdown
-# Resolved
+```org
+* Resolved
 
-## Questions
+** Questions
 
-(Resolved questions moved here from `-questions.md`, with their
+(Resolved questions moved here from =-questions.org=, with their
 answers inline. Each entry includes the original question, the
-answer, and a **Rationale:** line explaining *why* this decision
+answer, and a *Rationale:* line explaining /why/ this decision
 was made — so the reasoning survives even if the design doc only
 records the outcome.)
 
-## Criticism
+** Criticism
 
-(Resolved criticisms moved here from `-criticism.md`, with their
+(Resolved criticisms moved here from =-criticism.org=, with their
 resolutions inline. Each entry includes the original criticism,
-the resolution, and a **Rationale:** line explaining *why* this
+the resolution, and a *Rationale:* line explaining /why/ this
 resolution was chosen.)
 ```
 
 ---
 
-## `-critic-context.md` Structure
+## `-critic-context.org` Structure
 
-```markdown
-# Critic Context
+```org
+* Critic Context
 
-## Active Concerns
+** Active Concerns
 (Concerns the Critic currently holds about the design. Each entry
 includes when it was first raised and a severity: blocking / high /
 medium / low. Updated every iteration — resolved items move down,
 new items are added.)
 
-## Resolved Concerns
+** Resolved Concerns
 (Concerns that the Critic is satisfied have been genuinely addressed.
 Each entry includes the original concern, which iteration resolved
 it, and a brief assessment of the resolution quality.)
 
-## Patterns Noticed
+** Patterns Noticed
 (Cross-iteration observations — e.g. "specs tend to lag behind prose
 changes", "answers address surface issues without updating formal
 contracts". These help the Critic calibrate its scrutiny.)
@@ -99,52 +101,52 @@ every subsequent invocation (step 3c and restart).
 
 ---
 
-## `-boundary-context.md` Structure
+## `-boundary-context.org` Structure
 
-```markdown
-# Boundary Analysis
+```org
+* Boundary Analysis
 
-## Identified Subsystems
+** Identified Subsystems
 (Each subsystem as a named cluster of modules/processes with:
-- **Responsibility** — what this subsystem does as a black box
-- **Internal components** — modules/processes inside the boundary
-- **Public interface** — the narrow set of functions, messages,
+- *Responsibility* — what this subsystem does as a black box
+- *Internal components* — modules/processes inside the boundary
+- *Public interface* — the narrow set of functions, messages,
   or specs through which the rest of the system interacts with it,
   with recommended formalization (see Interface Formalization below)
-- **Internal details hidden** — what callers should NOT know about
-- **Stability** — how settled this boundary is: firm / provisional /
+- *Internal details hidden* — what callers should NOT know about
+- *Stability* — how settled this boundary is: firm / provisional /
   speculative
-- **Independence assessment** — could another team develop this
+- *Independence assessment* — could another team develop this
   subsystem given only the public interface? Could it be implemented
   in a different language? If not, what coupling prevents it?
-- **Interface formalization** — how should this subsystem's public
+- *Interface formalization* — how should this subsystem's public
   interface be formally described? Pick the appropriate level:
-  - *Within a single language:* typespecs / @type / @callback
+  - /Within a single language:/ typespecs / @type / @callback
     (Elixir Dialyzer), behaviours, protocols, TypeScript types,
     Go interfaces — whatever the language provides
-  - *Across language/team boundaries:* JSON Schema for data
+  - /Across language/team boundaries:/ JSON Schema for data
     shapes, OpenAPI for HTTP interfaces, AsyncAPI for
     message-based interfaces, Protocol Buffers / gRPC for
     RPC, GraphQL schema for query APIs
-  - *Both:* when a subsystem has internal callers (same
+  - /Both:/ when a subsystem has internal callers (same
     language) AND external callers (other teams/languages),
     define both — language-native types for internal use,
     language-agnostic spec for the boundary contract
   List the specific specs to produce and what each covers.)
 
-## Boundary Changes
+** Boundary Changes
 (How boundaries shifted across iterations. E.g. "Iteration 2:
 merged heartbeat and health-check into a single 'worker liveness'
 subsystem after user clarified they share timeout config.")
 
-## Distillation Opportunities
+** Distillation Opportunities
 (Existing code clusters that already behave as subsystems but lack
 a formal boundary. Listed only when formalizing the boundary would
 make the new feature's design cleaner. Each entry includes: which
 modules form the cluster, what interface the new feature would use,
 and what changes would be needed to formalize it.)
 
-## Boundary Tensions
+** Boundary Tensions
 (Places where the design currently reaches across a boundary or
 where two subsystems are coupled in a way that undermines the
 black-box property. These are not necessarily problems — just
@@ -156,21 +158,21 @@ every subsequent invocation (step 3c and restart).
 
 ---
 
-## `-journal.md` Structure
+## `-journal.org` Structure
 
-```markdown
-# Design Journal
+```org
+* Design Journal
 
-## Iteration 1 — Author
+** Iteration 1 — Author
 (Summary of key design decisions and rationale...)
 
-## Iteration 1 — Critic
+** Iteration 1 — Critic
 (Summary of key concerns raised and why...)
 
-## Iteration 2 — Validator
+** Iteration 2 — Validator
 (Summary of answer quality assessment...)
 
-## Iteration 2 — Critic (re-evaluation)
+** Iteration 2 — Critic (re-evaluation)
 (What changed, what improved, what's still concerning...)
 ```
 
@@ -189,94 +191,94 @@ cross-role awareness, not a transcript.
 This step uses two subagents with distinct roles to separate authoring from criticism.
 
 **Step 1a — Author subagent.** Read the relevant source files. Write:
-- `<feature-name>.md` — what the feature does and a proposed design. **Documentation-first:** actively look for opportunities to define behavior through formal specifications (JSON Schema for data validation, OpenAPI for HTTP interfaces, AsyncAPI for message-based interfaces, GraphQL schema for query APIs, DB migration schemas for data models). Prefer declarative, machine-readable definitions over prose descriptions of formats and contracts — the spec *is* the documentation.
-- `<feature-name>-questions.md` — genuine unknowns that need user input (not self-criticism disguised as questions)
+- `<feature-name>.org` — what the feature does and a proposed design. **Documentation-first:** actively look for opportunities to define behavior through formal specifications (JSON Schema for data validation, OpenAPI for HTTP interfaces, AsyncAPI for message-based interfaces, GraphQL schema for query APIs, DB migration schemas for data models). Prefer declarative, machine-readable definitions over prose descriptions of formats and contracts — the spec *is* the documentation.
+- `<feature-name>-questions.org` — genuine unknowns that need user input (not self-criticism disguised as questions)
 
-The Author subagent does NOT write criticisms — it advocates for its own design. After writing, it initializes `<feature-name>-journal.md` with an "Iteration 1 — Author" entry summarizing key design decisions and rationale.
+The Author subagent does NOT write criticisms — it advocates for its own design. After writing, it initializes `<feature-name>-journal.org` with an "Iteration 1 — Author" entry summarizing key design decisions and rationale.
 
 **Step 1b — Critic + Boundary Analyst subagents (in parallel).** Both read the design doc and questions produced by the Author, then independently read the same source files.
 
 *Critic subagent:*
-- Write `<feature-name>-criticism.md` — concerns, gaps, and risks in the proposed design
-- Write `<feature-name>-critic-context.md` — initialize with active concerns, empty resolved section, and any initial patterns noticed
-- The Critic has not written the design and is explicitly prompted to distrust it: check every claim against actual code, look for what the Author overlooked, and challenge assumptions. May also add items to `-questions.md` if it identifies unknowns the Author missed.
+- Write `<feature-name>-criticism.org` — concerns, gaps, and risks in the proposed design
+- Write `<feature-name>-critic-context.org` — initialize with active concerns, empty resolved section, and any initial patterns noticed
+- The Critic has not written the design and is explicitly prompted to distrust it: check every claim against actual code, look for what the Author overlooked, and challenge assumptions. May also add items to `-questions.org` if it identifies unknowns the Author missed.
 - Append an "Iteration 1 — Critic" entry to the journal.
 
 *Boundary Analyst subagent:*
-- Write `<feature-name>-boundary-context.md` — identify natural subsystem boundaries in the proposed design. Look for clusters of modules/processes that form cohesive units with narrow interfaces to the outside. For each boundary, define what's inside, what's the public interface, and what internal details should be hidden.
+- Write `<feature-name>-boundary-context.org` — identify natural subsystem boundaries in the proposed design. Look for clusters of modules/processes that form cohesive units with narrow interfaces to the outside. For each boundary, define what's inside, what's the public interface, and what internal details should be hidden.
 - The Boundary Analyst reads the existing codebase to understand where current subsystem boundaries already exist and how the new feature's boundaries relate to them. **Distillation opportunity:** if the new feature would benefit from a formal boundary around existing code that currently lacks one (e.g. a cluster of modules that already behaves as a subsystem but has no defined interface), the Boundary Analyst should propose extracting/formalizing that boundary. This goes into "Identified Subsystems" tagged as `existing — proposed formalization` with a note on what the new feature gains from it. The Analyst does NOT propose refactoring for its own sake — only when the new feature's design would be cleaner or more decoupled as a result.
 - For each identified subsystem, also consider: **"Could this subsystem be developed independently by another team?"** and **"Could this subsystem be implemented in a different programming language?"** These are litmus tests for boundary quality — if the answer is no, the interface is probably too leaky or coupled to implementation details. This doesn't mean subsystems *should* be separate services or languages, just that a well-drawn boundary *could* support it.
 - **Interface formalization:** for each boundary, recommend how to formally describe the public interface. Use language-native types (typespecs, behaviours, protocols, Dialyzer annotations) for boundaries within a single codebase. Use language-agnostic specs (JSON Schema, OpenAPI, AsyncAPI, Protocol Buffers, GraphQL schema) where the boundary crosses — or could cross — a language or team boundary. When both apply, recommend both: language-native for internal callers, language-agnostic for the contract. The Analyst should be specific: not just "add a JSON Schema" but "define a JSON Schema for the WorkerState payload shape that both the Elixir consumer and the external producer validate against."
-- May add items to `-questions.md` if a boundary is ambiguous (e.g. "should heartbeat monitoring be part of the worker lifecycle subsystem or a separate observability subsystem?").
+- May add items to `-questions.org` if a boundary is ambiguous (e.g. "should heartbeat monitoring be part of the worker lifecycle subsystem or a separate observability subsystem?").
 - Append an "Iteration 1 — Boundary Analyst" entry to the journal.
 
-### 2. User fills in `-answers.md`
+### 2. User fills in `-answers.org`
 
 The user populates Considerations, Questions, and Criticism sections.
 
 ### 3. Process answers — `loop <feature-name>`
 
-**Step 3a — Apply answers.** Read `-answers.md`. For each answer:
-- Update `<feature-name>.md` to reflect the resolved decision
-- Move the answered question from `-questions.md` to the `Questions` section of `-resolved.md`, appending the answer inline
-- Move the resolved criticism from `-criticism.md` to the `Criticism` section of `-resolved.md`, appending the resolution inline
+**Step 3a — Apply answers.** Read `-answers.org`. For each answer:
+- Update `<feature-name>.org` to reflect the resolved decision
+- Move the answered question from `-questions.org` to the `Questions` section of `-resolved.org`, appending the answer inline
+- Move the resolved criticism from `-criticism.org` to the `Criticism` section of `-resolved.org`, appending the resolution inline
 - If an answer introduces a new question or concern, add it to the respective file
-- If the user marks a question or criticism as **`defer`** (or words to that effect), move it to `-resolved.md` with status "Deferred" and a rationale, and add it to the **Known Deferred Work** section of the main design document
+- If the user marks a question or criticism as **`defer`** (or words to that effect), move it to `-resolved.org` with status "Deferred" and a rationale, and add it to the **Known Deferred Work** section of the main design document
 
-**Step 3b — Validator subagent.** After applying answers, launch a subagent that reads `-answers.md`, `-resolved.md`, and `<feature-name>.md` to check:
+**Step 3b — Validator subagent.** After applying answers, launch a subagent that reads `-answers.org`, `-resolved.org`, and `<feature-name>.org` to check:
 - Are any answers too vague or ambiguous to act on? (e.g. "TBD", "maybe", "probably")
 - Do any new answers contradict previously resolved decisions?
 - Do any answers create implicit new questions the user didn't notice?
 
-Issues found are added to `-questions.md` or `-criticism.md` before the convergence check. If no issues are found, the validator reports clean and processing continues. The Validator appends a journal entry summarizing its assessment.
+Issues found are added to `-questions.org` or `-criticism.org` before the convergence check. If no issues are found, the validator reports clean and processing continues. The Validator appends a journal entry summarizing its assessment.
 
 **Step 3c — Critic + Boundary Analyst re-evaluation (in parallel).** After the Validator, launch both subagents again.
 
 *Critic re-evaluation subagent.* Reads:
-- `<feature-name>-critic-context.md` — its own persistent context from prior iterations
-- The updated `<feature-name>.md` — to see how the design changed
-- `-resolved.md` — to assess whether resolutions genuinely addressed its prior concerns
-- `-journal.md` — for cross-role context
+- `<feature-name>-critic-context.org` — its own persistent context from prior iterations
+- The updated `<feature-name>.org` — to see how the design changed
+- `-resolved.org` — to assess whether resolutions genuinely addressed its prior concerns
+- `-journal.org` — for cross-role context
 
 The Critic then:
 1. Moves concerns it considers genuinely resolved from "Active Concerns" to "Resolved Concerns" in its context file, with a quality assessment
 2. Adds new concerns raised by the design changes to "Active Concerns"
 3. Updates "Patterns Noticed" if it observes recurring issues (e.g. "specs not updated alongside prose for the third time")
-4. Updates `<feature-name>-criticism.md` with any new or escalated concerns
+4. Updates `<feature-name>-criticism.org` with any new or escalated concerns
 5. Appends a journal entry summarizing what changed in its assessment
 
 If the Critic has active concerns tagged as "blocking" that haven't been addressed for 2+ iterations, it flags them explicitly to the user with an escalation note.
 
 *Boundary Analyst re-evaluation subagent.* Reads:
-- `<feature-name>-boundary-context.md` — its own persistent context
-- The updated `<feature-name>.md` — to see how resolved decisions affect boundaries
-- `-resolved.md` — decisions may have merged, split, or shifted subsystems
-- `-journal.md` — for cross-role context
+- `<feature-name>-boundary-context.org` — its own persistent context
+- The updated `<feature-name>.org` — to see how resolved decisions affect boundaries
+- `-resolved.org` — decisions may have merged, split, or shifted subsystems
+- `-journal.org` — for cross-role context
 
 The Boundary Analyst then:
 1. Updates "Identified Subsystems" — boundaries may have shifted, merged, or split based on resolved decisions
 2. Logs changes in "Boundary Changes" with iteration number and reason
 3. Updates "Boundary Tensions" — new decisions may have introduced cross-boundary coupling or resolved prior tensions
-4. May add items to `-questions.md` if a decision made a boundary ambiguous
+4. May add items to `-questions.org` if a decision made a boundary ambiguous
 5. Appends a journal entry summarizing boundary evolution
 
 **Convergence check:** After processing, report the net change in open items (e.g. "Resolved 4, added 1 — 3 remain"). If a loop iteration produces more new items than it resolves, flag this to the user explicitly — the design may need to be split into smaller sub-features.
 
-Once all answers are processed, recreate `-answers.md` with the three section headings only, pre-populated with the remaining open questions and criticisms copied under their respective sections as a reference — so the user can fill in answers without switching between files.
+Once all answers are processed, recreate `-answers.org` with the three section headings only, pre-populated with the remaining open questions and criticisms copied under their respective sections as a reference — so the user can fill in answers without switching between files.
 
 ### 4. Check for completion
 
 After processing answers, check all three conditions:
-1. **No open questions** — `-questions.md` is empty or deleted
-2. **No open criticisms** — `-criticism.md` is empty or deleted
-3. **No design holes** — `<feature-name>.md` does not contain TBD, TODO, placeholder, or "to be decided" markers, and every section that the design references is fleshed out
+1. **No open questions** — `-questions.org` is empty or deleted
+2. **No open criticisms** — `-criticism.org` is empty or deleted
+3. **No design holes** — `<feature-name>.org` does not contain TBD, TODO, placeholder, or "to be decided" markers, and every section that the design references is fleshed out
 
 - If any condition fails: list specifically what remains and suggest **`loop <feature-name>`**.
 - If all three pass: suggest **`review [N]`** or **`finalize <feature-name>`**.
 
 ### 4a. Parallel subagent review — `review [N]`
 
-Optional step before finalizing. Launches up to N specialized subagents **in parallel** (default N=7), each with a dedicated review role. Each subagent reads the design doc, `-journal.md` (for cross-iteration context), and all referenced source files but makes **no edits**. Before reporting on any file, each subagent must verify the file exists at the referenced path — if a referenced file is missing or has been renamed, report that as a Critical finding rather than assuming the file's contents.
+Optional step before finalizing. Launches up to N specialized subagents **in parallel** (default N=7), each with a dedicated review role. Each subagent reads the design doc, `-journal.org` (for cross-iteration context), and all referenced source files but makes **no edits**. Before reporting on any file, each subagent must verify the file exists at the referenced path — if a referenced file is missing or has been renamed, report that as a Critical finding rather than assuming the file's contents.
 
 | # | Role | Focus |
 |---|------|-------|
@@ -286,7 +288,7 @@ Optional step before finalizing. Launches up to N specialized subagents **in par
 | 4 | **API Reviewer** | Naming consistency, function signatures, module boundaries |
 | 5 | **Test Reviewer** | Are the proposed tests sufficient to catch regressions? Are there untested code paths? Prefer e2e tests that use real infrastructure (DB, message queues, blob storage) and only stub non-replicable external services. Flag any proposed unit tests that mock infrastructure that could be tested for real. Suggest specific test cases and red-green TDD sequences where applicable |
 | 6 | **Spec Reviewer** | Are all formal specifications (JSON Schema, OpenAPI, AsyncAPI, GraphQL schema, DB migrations) complete and valid? Do they match the prose design? Are there contracts described only in prose that should be formal specs? |
-| 7 | **Boundary Reviewer** | Read `-boundary-context.md`. Are subsystem boundaries clearly defined in the design? Are public interfaces narrow and sufficient? Does the design leak internal details across boundaries? Are there modules that straddle two subsystems and should be split? Does the design respect existing codebase boundaries or intentionally and explicitly change them? Is each boundary's interface formalized at the right level — language-native types for internal boundaries, language-agnostic specs (JSON Schema, OpenAPI, AsyncAPI, Protobuf) for cross-team/cross-language boundaries? Flag any boundary that lacks formal interface description. |
+| 7 | **Boundary Reviewer** | Read `-boundary-context.org`. Are subsystem boundaries clearly defined in the design? Are public interfaces narrow and sufficient? Does the design leak internal details across boundaries? Are there modules that straddle two subsystems and should be split? Does the design respect existing codebase boundaries or intentionally and explicitly change them? Is each boundary's interface formalized at the right level — language-native types for internal boundaries, language-agnostic specs (JSON Schema, OpenAPI, AsyncAPI, Protobuf) for cross-team/cross-language boundaries? Flag any boundary that lacks formal interface description. |
 
 When N < 7, pick the N most relevant roles for the feature. When N > 7, additional subagents repeat with increasing skepticism, cross-referencing findings from the first 7.
 
@@ -298,9 +300,9 @@ After the review, re-assess for completion:
 
 ### 5. Finalize — `finalize <feature-name>`
 
-**Step 5a — Consolidate.** Merge the completed `<feature-name>.md` design into the main design document under the appropriate section.
+**Step 5a — Consolidate.** Merge the completed `<feature-name>.org` design into the main design document under the appropriate section.
 
-**Step 5b — Finalization Verifier subagent.** Before deleting files, launch a subagent that reads the consolidated section in the main design document and diffs it against `<feature-name>.md` + `-resolved.md` + `-journal.md`. It checks:
+**Step 5b — Finalization Verifier subagent.** Before deleting files, launch a subagent that reads the consolidated section in the main design document and diffs it against `<feature-name>.org` + `-resolved.org` + `-journal.org`. It checks:
 - Are all resolved decisions and their rationales represented in the final doc?
 - Are all formal specs referenced in the design present and accounted for?
 - Did any nuances from resolved criticisms get lost during consolidation?
@@ -310,7 +312,7 @@ After the review, re-assess for completion:
 
 If the verifier finds gaps, Claude patches the consolidated section before proceeding.
 
-**Step 5c — Clean up.** Delete all sub-feature files (`-questions.md`, `-criticism.md`, `-answers.md`, `-resolved.md`, `-critic-context.md`, `-boundary-context.md`, `-journal.md`, and `<feature-name>.md` itself).
+**Step 5c — Clean up.** Delete all sub-feature files (`-questions.org`, `-criticism.org`, `-answers.org`, `-resolved.org`, `-critic-context.org`, `-boundary-context.org`, `-journal.org`, and `<feature-name>.org` itself).
 
 After finalizing, read the **Known Deferred Work** section of the main design document and suggest **`next`** if there are remaining deferred items, naming the one you would pick next and why.
 
@@ -320,14 +322,14 @@ Read the **Known Deferred Work** section of the main design document. Pick the h
 
 ### 6. Continue / restart — `restart <feature-name>`
 
-If the user wants to revisit a finalized feature — or creates a `<feature-name>.md` file manually to kick off a new design — recreate the full file set from the current state of the design:
-- `<feature-name>-questions.md` — questions derived from the existing design
-- `<feature-name>-criticism.md` — fresh criticism pass against the existing design (via Critic subagent)
-- `<feature-name>-answers.md` — empty, ready for the user
-- `<feature-name>-resolved.md` — empty (previous resolutions are already baked into the design doc)
-- `<feature-name>-critic-context.md` — fresh Critic context initialized from the existing design
-- `<feature-name>-boundary-context.md` — fresh Boundary Analyst context initialized from the existing design
-- `<feature-name>-journal.md` — initialized with a "Restart" entry noting what triggered the revisit
+If the user wants to revisit a finalized feature — or creates a `<feature-name>.org` file manually to kick off a new design — recreate the full file set from the current state of the design:
+- `<feature-name>-questions.org` — questions derived from the existing design
+- `<feature-name>-criticism.org` — fresh criticism pass against the existing design (via Critic subagent)
+- `<feature-name>-answers.org` — empty, ready for the user
+- `<feature-name>-resolved.org` — empty (previous resolutions are already baked into the design doc)
+- `<feature-name>-critic-context.org` — fresh Critic context initialized from the existing design
+- `<feature-name>-boundary-context.org` — fresh Boundary Analyst context initialized from the existing design
+- `<feature-name>-journal.org` — initialized with a "Restart" entry noting what triggered the revisit
 
 Then suggest **`loop <feature-name>`** to continue.
 
@@ -351,32 +353,32 @@ driving feature. To compensate for the missing filter, the output
 is capped and ranked.
 
 **Output:** A short report (max 5 candidates) written to
-`boundary-audit-report.md` in the current working directory. Each
+`boundary-audit-report.org` in the current working directory. Each
 candidate includes:
 
-```markdown
-### <Subsystem Name>
+```org
+** <Subsystem Name>
 
-**Modules:** (which existing modules form this cluster)
+*Modules:* (which existing modules form this cluster)
 
-**Evidence:** (why these modules behave as a subsystem — e.g.
+*Evidence:* (why these modules behave as a subsystem — e.g.
 "called together by 6 different callers", "share a supervision
 subtree", "all access the same ETS table")
 
-**Current interface:** (how callers currently interact — scattered
+*Current interface:* (how callers currently interact — scattered
 direct calls, shared GenServer, etc.)
 
-**Proposed boundary:** (what the formal public interface would
+*Proposed boundary:* (what the formal public interface would
 look like — which functions, which specs)
 
-**Formalization:** (what specs to produce — typespecs/behaviours
+*Formalization:* (what specs to produce — typespecs/behaviours
 for internal, JSON Schema/OpenAPI/AsyncAPI for cross-boundary)
 
-**Benefit:** (what concretely improves — "new features targeting
+*Benefit:* (what concretely improves — "new features targeting
 worker state would depend on 1 interface instead of 3 modules",
 "enables independent testing of the AMQP layer")
 
-**Effort:** low / medium / high
+*Effort:* low / medium / high
 ```
 
 Candidates are ranked by benefit-to-effort ratio. The report is
@@ -397,7 +399,7 @@ Delete it manually when no longer needed, or keep it as a backlog.
 
 ### Running a loop iteration
 
-1. Open `<feature-name>-answers.md` and fill in the three sections
+1. Open `<feature-name>-answers.org` and fill in the three sections
 2. Prompt: **`loop`** (feature name inferred from context)
 
 ### Reviewing before finalize (optional)
@@ -436,9 +438,9 @@ Use it when there are genuine design decisions to make, trade-offs to weigh, or 
 ## Session Resumption
 
 All design state lives in the eight files — a fresh Claude session can pick up where the previous one left off. When resuming:
-1. Read all existing files for the feature (`<feature-name>.md`, `-questions.md`, `-criticism.md`, `-answers.md`, `-resolved.md`, `-critic-context.md`, `-boundary-context.md`, `-journal.md`)
-2. If `-answers.md` has content the user filled in, run **`loop`** to process it
-3. If `-answers.md` is empty/headings-only, report the current state (open questions count, open criticisms count) and wait for the user
+1. Read all existing files for the feature (`<feature-name>.org`, `-questions.org`, `-criticism.org`, `-answers.org`, `-resolved.org`, `-critic-context.org`, `-boundary-context.org`, `-journal.org`)
+2. If `-answers.org` has content the user filled in, run **`loop`** to process it
+3. If `-answers.org` is empty/headings-only, report the current state (open questions count, open criticisms count) and wait for the user
 
 ---
 
@@ -457,6 +459,6 @@ Multiple features can be in-flight simultaneously — each has its own file set.
 - When suggesting next commands after an iteration, omit the feature name from the suggestion if it matches the current feature — e.g. suggest **`loop`** rather than **`loop <feature-name>`**.
 - Process all answers in a single pass — do not ask follow-up questions mid-loop.
 - **Batch size guidance:** If a loop iteration produces more than 10 open questions, group them by theme and mark the groups with priorities (blocking / important / nice-to-have). This helps the user triage rather than face a wall of undifferentiated questions.
-- When a criticism is "accepted as a known gap", move it to `-resolved.md` and also add it to the **Known Deferred Work** section of the main design document.
+- When a criticism is "accepted as a known gap", move it to `-resolved.org` and also add it to the **Known Deferred Work** section of the main design document.
 - Sub-features of a feature follow the same loop — one set of files per sub-feature, or a single set covering all sub-features together if they are tightly related.
-- Never delete `-resolved.md` mid-loop. It is only deleted as part of the finalize step.
+- Never delete `-resolved.org` mid-loop. It is only deleted as part of the finalize step.
