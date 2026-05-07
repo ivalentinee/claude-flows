@@ -121,6 +121,16 @@ Before writing code, also consider:
 
 Run the project's test/lint suite.
 
+**Trailing Abstraction Minimalist check.** After implementation is
+complete but before the full review, run a lightweight Abstraction
+Minimalist subagent that scans only the newly written/modified
+functions. It reports inline to the main agent (no file output).
+Fix any clear tier violations immediately — this is cheaper than
+catching them in the full review after more code has adapted to
+the mixed-level functions. Only flag violations where the tier
+mismatch is unambiguous; borderline cases are left for the full
+reviewer in step 3.
+
 ### 3. Parallel self-review — automatic after step 2
 
 Launch specialized reviewer subagents **in parallel**, each with an
@@ -149,6 +159,35 @@ against the actual code, not memory.
 
 Skip LSP (inheritance-oriented), ISP (Elixir behaviours are already minimal), OCP (leads to premature extension points). Do NOT recommend abstractions that don't serve an immediate need — three similar lines of code is better than a premature abstraction.
 
+| 8 | **Abstraction Minimalist** | Check that abstraction levels are consistent within each function and module (see checklist below). The goal is context minimization: reading a function should not require holding details from a different abstraction tier. Flag violations as extraction opportunities, not style complaints |
+
+**Abstraction Minimalist checklist** (for reviewer #8):
+
+*Function level — are all statements at the same tier?*
+- A function that calls `Repo.get_worker/1` should not also do
+  `String.split(raw, ",") |> Enum.map(&String.trim/1)` inline —
+  the parsing operates at a lower tier than the orchestration
+- A function handling HTTP concerns should not write to DB directly
+- Complex loop/comprehension bodies that operate at a lower tier
+  than the surrounding code should be extracted into a named function
+  — but short, clear inline expressions at the right tier are fine
+  (do NOT extract for extraction's sake)
+
+*Module level — does the public API sit at one coherent tier?*
+- A module exporting both `sync_worker_state/1` (coordination) and
+  `parse_amqp_timestamp/1` (utility) has a leaky abstraction surface
+- Public functions should read like a coherent API at one level;
+  lower-tier helpers should be private
+
+*Cross-module — are callers forced to know implementation details?*
+- If a caller must understand the internal data layout, parsing
+  format, or storage mechanism of another module to use it, the
+  boundary is at the wrong tier
+
+Do NOT recommend extraction when the inline code is short, clear,
+and at the same tier as its surroundings. The goal is consistent
+tiers, not maximum decomposition.
+
 Each subagent reads the diff from step 2 and all relevant source files
 but makes **no edits**. Each produces a structured report with severity
 ratings (Critical / High / Medium / Low / Info).
@@ -162,6 +201,12 @@ persists — the user may consult it to understand what was auto-fixed.
 Read `<feature>-review.md`. For each issue:
 - Fixable → apply the fix
 - Blocking (design ambiguity, out of scope) → raise for discussion
+
+**Trailing Abstraction Minimalist check.** After fixes are applied,
+run the lightweight Abstraction Minimalist on the changed functions
+only. Reviewer fixes can introduce tier mismatches (e.g. inlining
+detail to fix a correctness issue). Fix clear violations before
+proceeding.
 
 Re-run the test/lint suite.
 
@@ -191,6 +236,11 @@ the full path from the project root, wrapped in backticks — e.g.
 - Apply the fix or change requested
 - Move the note to `review-notes-resolved.md`, appending a
   `**Resolved:**` subsection explaining what was done
+
+**Trailing Abstraction Minimalist check.** After applying fixes, run
+the lightweight Abstraction Minimalist on changed functions only.
+User-requested changes can introduce tier mismatches. Fix clear
+violations before validation.
 
 **Step 6b — Fix Validator subagent.** After applying all fixes, launch
 a subagent that reads the diff of changes made in this iteration,
@@ -304,6 +354,41 @@ non-trivial logic, or when you want the structured review cycle.
 4. **Exploitation doc.** Read from and update the project's
    exploitation/infrastructure doc for any deployment-relevant
    changes. If no exploitation doc exists, suggest creating one.
+
+---
+
+## Standalone: Abstraction Check — `abstraction-check <target>`
+
+A standalone command that runs the Abstraction Minimalist analysis on
+any module or function outside of the Implementation Flow. Useful when
+writing code manually and wanting an outsider perspective on
+abstraction tier consistency.
+
+**Input:** A target — a file path, a module name, or a
+`Module.function/arity` reference. Multiple targets can be
+space-separated.
+
+**Process:** Launch an Abstraction Minimalist subagent that reads the
+target code and its immediate callers/callees (to understand the
+tier the code sits at in context). Applies the same analysis as
+during the Implementation Flow — function-level tier consistency,
+module-level API coherence, and cross-module tier leaks.
+
+**Output:** A short inline report (no file created) with:
+- **Tier map** — a brief description of what abstraction tier each
+  public function operates at (e.g. "orchestration", "data access",
+  "parsing/formatting", "transport")
+- **Violations** — specific locations where the tier is inconsistent,
+  with a suggested extraction or restructuring
+- **Assessment** — overall: clean / minor issues / needs restructuring
+
+This is informational and makes no edits. The user decides what (if
+anything) to act on.
+
+Examples:
+- `abstraction-check lib/idunn_monitor/environment/amqp.ex`
+- `abstraction-check IdunnMonitor.Environment.CRUD`
+- `abstraction-check IdunnMonitor.Environment.CRUD.update_state/2`
 
 ---
 

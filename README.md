@@ -18,13 +18,14 @@ boundary-audit [scope] — standalone: scan existing code for implicit subsystem
 
 ## Implementation Flow
 
-A structured implementation process that follows a finalized design through code, self-review, and user review cycles. Starts with a two-phase planning step: a Module Relationship subagent maps the topology (modules, interfaces, supervision tree, data flow), then a Plan subagent sequences the build order. Prefers e2e tests with real infrastructure over unit tests with mocks. Uses 7 parallel reviewer subagents including a Principles Reviewer that checks Elixir-adapted SOLID/GRASP as a smell detector.
+A structured implementation process that follows a finalized design through code, self-review, and user review cycles. Starts with a two-phase planning step: a Module Relationship subagent maps the topology (modules, interfaces, supervision tree, data flow), then a Plan subagent sequences the build order. Prefers e2e tests with real infrastructure over unit tests with mocks. Uses 8 parallel reviewer subagents including a Principles Reviewer (SOLID/GRASP smell detector) and an Abstraction Minimalist (consistent abstraction tiers within functions and modules). The Abstraction Minimalist also runs as a lightweight trailing check after every code-writing step to catch tier violations before they compound.
 
 ```
-implement <feature> — Module Relationship subagent → Plan subagent → write code + tests → 7 parallel reviewers → fix → review plan
-loop                — apply user notes, Fix Validator subagent checks fixes, update review plan
-finalize            — Completeness Verifier subagent checks design coverage, then clean up
-commit              — create a commit
-resume              — pick up interrupted work from file state
-retro               — optional retrospective on the cycle
+implement <feature>          — plan → write code + tests → trailing abstraction check → 8 parallel reviewers → fix → review plan
+loop                         — apply user notes, trailing abstraction check, Fix Validator, update review plan
+finalize                     — Completeness Verifier checks design coverage, then clean up
+commit                       — create a commit
+resume                       — pick up interrupted work from file state
+retro                        — optional retrospective on the cycle
+abstraction-check <target>   — standalone: analyze abstraction tier consistency of any module/function
 ```
