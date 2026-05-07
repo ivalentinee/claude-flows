@@ -4,7 +4,7 @@ An iterative design process for features and sub-features. Every feature goes th
 
 ---
 
-## The Five Files
+## The Seven Files
 
 For a feature named `<feature-name>`, create:
 
@@ -15,6 +15,8 @@ For a feature named `<feature-name>`, create:
 | `<feature-name>-criticism.md` | Criticisms and concerns about the current design. Items are moved to `-resolved.md` as they are resolved. When empty, delete the file. |
 | `<feature-name>-answers.md` | Written by the user. Three sections (see below). Read by Claude at the start of each loop iteration. Never modified by Claude. |
 | `<feature-name>-resolved.md` | Archive of resolved questions and criticisms. Two sections: `Questions` and `Criticism`. Append-only — never remove entries. Created on first resolution. |
+| `<feature-name>-critic-context.md` | Persistent working memory for the Critic subagent. Tracks active concerns, resolved concerns, and patterns noticed across iterations. Read and updated by the Critic on every invocation. |
+| `<feature-name>-journal.md` | Shared append-only design journal. Every subagent appends a timestamped, role-tagged entry summarizing its key observations. Gives all roles cross-iteration context in one place. |
 
 All files start with **headings only** — no content. Content is added by Claude (design/questions/criticism/resolved) or the user (answers) as the loop progresses.
 
@@ -69,6 +71,59 @@ resolution was chosen.)
 
 ---
 
+## `-critic-context.md` Structure
+
+```markdown
+# Critic Context
+
+## Active Concerns
+(Concerns the Critic currently holds about the design. Each entry
+includes when it was first raised and a severity: blocking / high /
+medium / low. Updated every iteration — resolved items move down,
+new items are added.)
+
+## Resolved Concerns
+(Concerns that the Critic is satisfied have been genuinely addressed.
+Each entry includes the original concern, which iteration resolved
+it, and a brief assessment of the resolution quality.)
+
+## Patterns Noticed
+(Cross-iteration observations — e.g. "specs tend to lag behind prose
+changes", "answers address surface issues without updating formal
+contracts". These help the Critic calibrate its scrutiny.)
+```
+
+Created by the Critic at step 1b. Read and updated by the Critic on
+every subsequent invocation (step 3c and restart).
+
+---
+
+## `-journal.md` Structure
+
+```markdown
+# Design Journal
+
+## Iteration 1 — Author
+(Summary of key design decisions and rationale...)
+
+## Iteration 1 — Critic
+(Summary of key concerns raised and why...)
+
+## Iteration 2 — Validator
+(Summary of answer quality assessment...)
+
+## Iteration 2 — Critic (re-evaluation)
+(What changed, what improved, what's still concerning...)
+```
+
+Append-only — subagents never edit prior entries, only add new ones.
+Every subagent that runs (Author, Critic, Validator, Reviewers,
+Verifier) appends a section tagged with the iteration number and role.
+Entries should be concise (3–5 bullet points) — the journal is for
+cross-role awareness, not a transcript.
+
+---
+
 ## The Loop
 
 ### 1. Initial pass — `start <feature-name>`
@@ -79,12 +134,13 @@ This step uses two subagents with distinct roles to separate authoring from crit
 - `<feature-name>.md` — what the feature does and a proposed design. **Documentation-first:** actively look for opportunities to define behavior through formal specifications (JSON Schema for data validation, OpenAPI for HTTP interfaces, AsyncAPI for message-based interfaces, GraphQL schema for query APIs, DB migration schemas for data models). Prefer declarative, machine-readable definitions over prose descriptions of formats and contracts — the spec *is* the documentation.
 - `<feature-name>-questions.md` — genuine unknowns that need user input (not self-criticism disguised as questions)
 
-The Author subagent does NOT write criticisms — it advocates for its own design.
+The Author subagent does NOT write criticisms — it advocates for its own design. After writing, it initializes `<feature-name>-journal.md` with an "Iteration 1 — Author" entry summarizing key design decisions and rationale.
 
 **Step 1b — Critic subagent.** Read the design doc and questions produced by the Author, then independently read the same source files. Write:
 - `<feature-name>-criticism.md` — concerns, gaps, and risks in the proposed design
+- `<feature-name>-critic-context.md` — initialize with the Critic's active concerns, empty resolved section, and any initial patterns noticed
 
-The Critic has not written the design and is explicitly prompted to distrust it: check every claim against actual code, look for what the Author overlooked, and challenge assumptions. The Critic may also add items to `-questions.md` if it identifies unknowns the Author missed.
+The Critic has not written the design and is explicitly prompted to distrust it: check every claim against actual code, look for what the Author overlooked, and challenge assumptions. The Critic may also add items to `-questions.md` if it identifies unknowns the Author missed. After writing, it appends an "Iteration 1 — Critic" entry to the journal.
 
 ### 2. User fills in `-answers.md`
 
@@ -104,7 +160,22 @@ The user populates Considerations, Questions, and Criticism sections.
 - Do any new answers contradict previously resolved decisions?
 - Do any answers create implicit new questions the user didn't notice?
 
-Issues found are added to `-questions.md` or `-criticism.md` before the convergence check. If no issues are found, the validator reports clean and processing continues.
+Issues found are added to `-questions.md` or `-criticism.md` before the convergence check. If no issues are found, the validator reports clean and processing continues. The Validator appends a journal entry summarizing its assessment.
+
+**Step 3c — Critic re-evaluation subagent.** After the Validator, launch the Critic subagent again. It reads:
+- `<feature-name>-critic-context.md` — its own persistent context from prior iterations
+- The updated `<feature-name>.md` — to see how the design changed
+- `-resolved.md` — to assess whether resolutions genuinely addressed its prior concerns
+- `-journal.md` — for cross-role context
+
+The Critic then:
+1. Moves concerns it considers genuinely resolved from "Active Concerns" to "Resolved Concerns" in its context file, with a quality assessment
+2. Adds new concerns raised by the design changes to "Active Concerns"
+3. Updates "Patterns Noticed" if it observes recurring issues (e.g. "specs not updated alongside prose for the third time")
+4. Updates `<feature-name>-criticism.md` with any new or escalated concerns
+5. Appends a journal entry summarizing what changed in its assessment
+
+If the Critic has active concerns tagged as "blocking" that haven't been addressed for 2+ iterations, it flags them explicitly to the user with an escalation note.
 
 **Convergence check:** After processing, report the net change in open items (e.g. "Resolved 4, added 1 — 3 remain"). If a loop iteration produces more new items than it resolves, flag this to the user explicitly — the design may need to be split into smaller sub-features.
 
@@ -122,7 +193,7 @@ After processing answers, check all three conditions:
 
 ### 4a. Parallel subagent review — `review [N]`
 
-Optional step before finalizing. Launches up to N specialized subagents **in parallel** (default N=6), each with a dedicated review role. Each subagent reads the design doc and all referenced source files but makes **no edits**. Before reporting on any file, each subagent must verify the file exists at the referenced path — if a referenced file is missing or has been renamed, report that as a Critical finding rather than assuming the file's contents.
+Optional step before finalizing. Launches up to N specialized subagents **in parallel** (default N=6), each with a dedicated review role. Each subagent reads the design doc, `-journal.md` (for cross-iteration context), and all referenced source files but makes **no edits**. Before reporting on any file, each subagent must verify the file exists at the referenced path — if a referenced file is missing or has been renamed, report that as a Critical finding rather than assuming the file's contents.
 
 | # | Role | Focus |
 |---|------|-------|
@@ -135,7 +206,7 @@ Optional step before finalizing. Launches up to N specialized subagents **in par
 
 When N < 6, pick the N most relevant roles for the feature. When N > 6, additional subagents repeat with increasing skepticism, cross-referencing findings from the first 6.
 
-Each subagent produces a structured report with severity ratings (Critical / High / Medium / Low / Info). Claude collates the reports, deduplicates overlapping findings, then updates the design to address all High+ findings and documents Low/Info findings as known tradeoffs.
+Each subagent produces a structured report with severity ratings (Critical / High / Medium / Low / Info). Claude collates the reports, deduplicates overlapping findings, appends a combined "Review" journal entry summarizing findings by role, then updates the design to address all High+ findings and documents Low/Info findings as known tradeoffs.
 
 After the review, re-assess for completion:
 - If the review introduced new questions or design changes: suggest **`loop`**.
@@ -145,14 +216,16 @@ After the review, re-assess for completion:
 
 **Step 5a — Consolidate.** Merge the completed `<feature-name>.md` design into the main design document under the appropriate section.
 
-**Step 5b — Finalization Verifier subagent.** Before deleting files, launch a subagent that reads the consolidated section in the main design document and diffs it against `<feature-name>.md` + `-resolved.md`. It checks:
+**Step 5b — Finalization Verifier subagent.** Before deleting files, launch a subagent that reads the consolidated section in the main design document and diffs it against `<feature-name>.md` + `-resolved.md` + `-journal.md`. It checks:
 - Are all resolved decisions and their rationales represented in the final doc?
 - Are all formal specs referenced in the design present and accounted for?
 - Did any nuances from resolved criticisms get lost during consolidation?
+- Does the Critic's context show any unresolved concerns that weren't explicitly deferred?
+- Are key insights from the journal reflected in the final doc?
 
 If the verifier finds gaps, Claude patches the consolidated section before proceeding.
 
-**Step 5c — Clean up.** Delete all sub-feature files (`-questions.md`, `-criticism.md`, `-answers.md`, `-resolved.md`, and `<feature-name>.md` itself).
+**Step 5c — Clean up.** Delete all sub-feature files (`-questions.md`, `-criticism.md`, `-answers.md`, `-resolved.md`, `-critic-context.md`, `-journal.md`, and `<feature-name>.md` itself).
 
 After finalizing, read the **Known Deferred Work** section of the main design document and suggest **`next`** if there are remaining deferred items, naming the one you would pick next and why.
 
@@ -164,9 +237,11 @@ Read the **Known Deferred Work** section of the main design document. Pick the h
 
 If the user wants to revisit a finalized feature — or creates a `<feature-name>.md` file manually to kick off a new design — recreate the full file set from the current state of the design:
 - `<feature-name>-questions.md` — questions derived from the existing design
-- `<feature-name>-criticism.md` — fresh criticism pass against the existing design
+- `<feature-name>-criticism.md` — fresh criticism pass against the existing design (via Critic subagent)
 - `<feature-name>-answers.md` — empty, ready for the user
 - `<feature-name>-resolved.md` — empty (previous resolutions are already baked into the design doc)
+- `<feature-name>-critic-context.md` — fresh Critic context initialized from the existing design
+- `<feature-name>-journal.md` — initialized with a "Restart" entry noting what triggered the revisit
 
 Then suggest **`loop <feature-name>`** to continue.
 
@@ -215,8 +290,8 @@ Use it when there are genuine design decisions to make, trade-offs to weigh, or 
 
 ## Session Resumption
 
-All design state lives in the five files — a fresh Claude session can pick up where the previous one left off. When resuming:
-1. Read all existing files for the feature (`<feature-name>.md`, `-questions.md`, `-criticism.md`, `-answers.md`, `-resolved.md`)
+All design state lives in the seven files — a fresh Claude session can pick up where the previous one left off. When resuming:
+1. Read all existing files for the feature (`<feature-name>.md`, `-questions.md`, `-criticism.md`, `-answers.md`, `-resolved.md`, `-critic-context.md`, `-journal.md`)
 2. If `-answers.md` has content the user filled in, run **`loop`** to process it
 3. If `-answers.md` is empty/headings-only, report the current state (open questions count, open criticisms count) and wait for the user
 

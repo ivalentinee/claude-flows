@@ -4,13 +4,13 @@ Structured workflows for Claude Code that guide feature development through expl
 
 ## Design Flow
 
-An iterative design process that produces a finalized feature design through question/criticism/answer cycles. The user and Claude converge on a design via file-based state: a design doc, open questions, criticisms, user answers, and a resolved archive. Emphasizes documentation-first thinking (JSON Schema, OpenAPI, AsyncAPI) and formal specifications over prose. Uses specialized subagents to separate authoring from criticism, validate answers, run parallel reviews, and verify finalization completeness.
+An iterative design process that produces a finalized feature design through question/criticism/answer cycles. The user and Claude converge on a design via file-based state: a design doc, open questions, criticisms, user answers, a resolved archive, a persistent Critic context, and a shared design journal. Emphasizes documentation-first thinking (JSON Schema, OpenAPI, AsyncAPI) and formal specifications over prose. Uses specialized subagents to separate authoring from criticism, validate answers, run parallel reviews, and verify finalization completeness. The Critic subagent persists its working memory across iterations and re-evaluates the design every loop.
 
 ```
-start <feature>     — Author subagent writes design + questions; Critic subagent writes criticisms
-loop                — apply answers, Validator subagent checks consistency, check convergence
+start <feature>     — Author subagent writes design + questions + journal; Critic subagent writes criticisms + initializes its context
+loop                — apply answers, Validator checks consistency, Critic re-evaluates with persistent context, check convergence
 review [N]          — N parallel reviewer subagents (default 6: correctness, edge cases, integration, API, tests, specs)
-finalize            — consolidate into main design doc, Verifier subagent checks nothing was lost
+finalize            — consolidate into main design doc, Verifier checks nothing was lost (reads journal + critic context)
 next                — pick and start the next deferred sub-feature
 restart <feature>   — reopen a finalized feature for further iteration
 ```
