@@ -26,6 +26,7 @@ All implementation files live in the feature's documentation directory
 
 | File                       | Purpose                                                          |
 |----------------------------|------------------------------------------------------------------|
+| `<feature>-impl-plan.md`   | Two-section implementation plan: module relationships + build order. Temporary — deleted at finalize. |
 | `review-plan.org`          | Emacs org-mode file listing changed files grouped by concern     |
 | `review-notes.md`          | User's review notes — first-level headings per file              |
 | `review-notes-resolved.md` | Archive of resolved review notes with resolution explanations    |
@@ -35,21 +36,92 @@ All implementation files live in the feature's documentation directory
 
 ## The Steps
 
-### 1. Implement — `implement <feature-name>`
+### 1. Plan — automatic first step of `implement <feature-name>`
 
-Read the finalized design section in the main design document.
+Before writing code, produce `<feature>-impl-plan.md` using two
+sequential subagents. This file has two sections.
 
-Before writing code, consider:
-- What code properties (correctness, cohesiveness, consistency with
-  existing patterns) would benefit the result
-- Whether documentation-based approaches apply (JSON Schema
-  validations, generated types, OpenAPI/AsyncAPI)
+**Step 1a — Module Relationship subagent.** Read the finalized design
+and the existing codebase (supervision trees, module boundaries,
+behaviours, protocols, data flow). Write section 1 of
+`<feature>-impl-plan.md`:
+
+```markdown
+## Module Relationships
+
+### New Modules
+(Each new module with its single responsibility.)
+
+### Modified Modules
+(Existing modules being touched and what changes in each.)
+
+### Dependencies
+(How modules relate: new→new, new→existing. Who calls whom,
+who subscribes to what, who supervises whom.)
+
+### Interfaces & Contracts
+(Behaviours, protocols, struct shapes, and formal specs — JSON
+Schema, OpenAPI, AsyncAPI — to define before implementation.
+These are the integration seams.)
+
+### Supervision Tree Placement
+(Where new processes sit in the OTP supervision tree.)
+
+### Data Flow
+(Which process sends what to whom, through which mechanism —
+direct call, PubSub, message queue, ETS.)
+```
+
+The Module Relationship subagent does NOT sequence work — it
+describes the topology.
+
+**Step 1b — Plan subagent.** Read the module relationships (output of
+1a) and the finalized design. Write section 2 of
+`<feature>-impl-plan.md`:
+
+```markdown
+## Implementation Plan
+
+### Step Order
+(Numbered steps, each referencing modules from section 1.
+Dependencies between steps noted — what blocks what.)
+
+### Parallel Opportunities
+(Which steps can be built simultaneously.)
+
+### Integration Checkpoints
+(After which steps the modules should be wirable end-to-end.
+E.g. "after steps 1–3, the data layer and PubSub are connected
+and can be tested together.")
+
+### Formal Specs to Produce First
+(Which JSON Schema / OpenAPI / AsyncAPI / behaviour definitions
+should be written before any implementation code, because other
+modules depend on them.)
+```
+
+### 2. Implement — automatic after step 1
+
+Follow the plan from `<feature>-impl-plan.md`. For each step in order:
+- Define interfaces and formal specs first (as identified in the plan)
+- Write the implementation
+- Write tests for the new code's key behaviors and edge cases — do not
+  rely solely on existing tests to validate new code
+
+**Test strategy:** prefer e2e tests that exercise real infrastructure
+(DB, message queues, blob storage) over unit tests with mocks. Only
+stub services that cannot be replicated locally (third-party APIs,
+payment providers, external SaaS). If a dependency can run in
+docker-compose or an emulator (e.g. Azurite for Azure Blob), test
+against the real thing.
+
+Before writing code, also consider:
 - Whether infrastructure/exploitation info should be read from or
   updated in the project's exploitation doc
 
-Then write the implementation, including tests for the new feature's key behaviors and edge cases — do not rely solely on existing tests to validate new code. **Test strategy:** prefer e2e tests that exercise real infrastructure (DB, message queues, blob storage) over unit tests with mocks. Only stub services that cannot be replicated locally (third-party APIs, payment providers, external SaaS). If a dependency can run in docker-compose or an emulator (e.g. Azurite for Azure Blob), test against the real thing. Run the project's test/lint suite.
+Run the project's test/lint suite.
 
-### 2. Parallel self-review — automatic after step 1
+### 3. Parallel self-review — automatic after step 2
 
 Launch specialized reviewer subagents **in parallel**, each with an
 **adversarial stance** — assume the code is wrong and try to prove it.
@@ -65,8 +137,19 @@ against the actual code, not memory.
 | 4 | **Test Reviewer** | Are there behaviors or branches not covered by the new tests? Are tests hitting real infrastructure where possible, or unnecessarily mocking things that can run locally? Suggest missing test cases |
 | 5 | **Spec Reviewer** | Are formal specifications (JSON Schema, OpenAPI, AsyncAPI, GraphQL schema, DB migrations) implemented correctly? Do runtime validations match the declared schemas? |
 | 6 | **Style Reviewer** | Naming consistency, pattern consistency with the existing codebase, code organization, module boundaries |
+| 7 | **Principles Reviewer** | Check code against Elixir-adapted SOLID/GRASP principles (see checklist below). Flag violations as smells, not mandates — the goal is to catch problems, not enforce maximal adherence |
 
-Each subagent reads the diff from step 1 and all relevant source files
+**Principles checklist** (for reviewer #7 — smell detector, not design mandate):
+- **SRP** — does each module have one reason to change? Flag modules that mix concerns (e.g. data access + business logic + serialization)
+- **DIP** — does code depend on behaviours/protocols where it should, or is it coupled to concrete modules that could be swapped?
+- **Information Expert** (GRASP) — is behavior placed where the data lives, or is data being extracted and processed elsewhere?
+- **Low Coupling** (GRASP) — are modules connected through narrow, well-defined interfaces? Flag modules that reach into each other's internals
+- **High Cohesion** (GRASP) — do module contents belong together, or is the module a grab-bag of loosely related functions?
+- **Creator** (GRASP) — does the module that has initialization data create the struct/process, or is creation responsibility misplaced?
+
+Skip LSP (inheritance-oriented), ISP (Elixir behaviours are already minimal), OCP (leads to premature extension points). Do NOT recommend abstractions that don't serve an immediate need — three similar lines of code is better than a premature abstraction.
+
+Each subagent reads the diff from step 2 and all relevant source files
 but makes **no edits**. Each produces a structured report with severity
 ratings (Critical / High / Medium / Low / Info).
 
@@ -74,7 +157,7 @@ Claude collates and deduplicates the reports into
 `<feature>-review.md` in the feature documentation directory. This file
 persists — the user may consult it to understand what was auto-fixed.
 
-### 3. Fix — automatic after step 2
+### 4. Fix — automatic after step 3
 
 Read `<feature>-review.md`. For each issue:
 - Fixable → apply the fix
@@ -82,7 +165,7 @@ Read `<feature>-review.md`. For each issue:
 
 Re-run the test/lint suite.
 
-### 4. Review plan + review notes — automatic after step 3
+### 5. Review plan + review notes — automatic after step 4
 
 Create `review-plan.org` in the feature documentation directory.
 
@@ -102,14 +185,14 @@ from `review-plan.org`, listed in the same order. Each heading uses
 the full path from the project root, wrapped in backticks — e.g.
 `## \`path/to/file.ex\``. The user fills in notes under each heading.
 
-### 5. Iterate — `loop`
+### 6. Iterate — `loop`
 
-**Step 5a — Apply fixes.** Read `review-notes.md`. For each note:
+**Step 6a — Apply fixes.** Read `review-notes.md`. For each note:
 - Apply the fix or change requested
 - Move the note to `review-notes-resolved.md`, appending a
   `**Resolved:**` subsection explaining what was done
 
-**Step 5b — Fix Validator subagent.** After applying all fixes, launch
+**Step 6b — Fix Validator subagent.** After applying all fixes, launch
 a subagent that reads the diff of changes made in this iteration,
 `review-notes.md`, and the finalized design. It checks:
 - Did each fix actually address the review note it claims to resolve?
@@ -118,7 +201,7 @@ a subagent that reads the diff of changes made in this iteration,
 
 Issues found are reported to the user alongside the review-plan update.
 
-**Step 5c — Update review plan.** Update `review-plan.org`:
+**Step 6c — Update review plan.** Update `review-plan.org`:
 - If a file was modified by this iteration: uncheck its `- [ ]` item
   and update the review description to reflect only the latest change
   (so the user reviews only what changed, not the whole file again).
@@ -131,9 +214,9 @@ Re-run the test/lint suite.
 If `review-notes.md` still has unresolved notes, suggest **`loop`**.
 If all notes are resolved, suggest **`finalize`**.
 
-### 6. Finalize — `finalize`
+### 7. Finalize — `finalize`
 
-**Step 6a — Completeness Verifier subagent.** Before deleting files,
+**Step 7a — Completeness Verifier subagent.** Before deleting files,
 launch a subagent that reads the finalized design and the current
 implementation. It checks:
 - Does the implementation cover every aspect of the finalized design?
@@ -144,10 +227,11 @@ implementation. It checks:
 - Do all tests pass and cover the key behaviors described in the design?
 
 If the verifier finds gaps, report them to the user before proceeding.
-The user can choose to address them now (back to step 5) or defer them.
+The user can choose to address them now (back to step 6) or defer them.
 
-**Step 6b — Clean up.** Delete all review-related files from the
+**Step 7b — Clean up.** Delete all implementation flow files from the
 feature documentation directory:
+- `<feature>-impl-plan.md`
 - `review-plan.org`
 - `review-notes.md`
 - `review-notes-resolved.md`
@@ -155,11 +239,11 @@ feature documentation directory:
 
 Suggest **`commit`**.
 
-### 7. Commit — `commit`
+### 8. Commit — `commit`
 
 Create a commit following the project's existing commit convention.
 
-### 8. Retrospective (optional) — `retro`
+### 9. Retrospective (optional) — `retro`
 
 Quick self-assessment after completing a full cycle. Report in 3–5
 bullet points:
@@ -183,9 +267,11 @@ session, interrupted work):
 2. Check git status/diff to see what code changes exist
 3. Report current state: which step was last completed, what remains
 4. If `review-notes.md` has unprocessed notes → suggest **`loop`**
-5. If implementation is done but no review files exist → run step 2
+5. If implementation is done but no review files exist → run step 3
    (self-review) onward
-6. If no code changes exist → start from step 1
+6. If `<feature>-impl-plan.md` exists but no code changes → resume
+   from step 2 (implement)
+7. If no files exist → start from step 1 (plan)
 
 ---
 
@@ -235,7 +321,7 @@ non-trivial logic, or when you want the structured review cycle.
 
 After finalizing a design: **`implement <feature-name>`**
 
-Steps 1–4 run automatically: implement → self-review → fix →
+Steps 1–5 run automatically: plan → implement → self-review → fix →
 create review-plan.org + review-notes.md.
 
 ### User fills in review-notes.md, then

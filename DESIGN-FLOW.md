@@ -4,7 +4,7 @@ An iterative design process for features and sub-features. Every feature goes th
 
 ---
 
-## The Seven Files
+## The Eight Files
 
 For a feature named `<feature-name>`, create:
 
@@ -16,6 +16,7 @@ For a feature named `<feature-name>`, create:
 | `<feature-name>-answers.md` | Written by the user. Three sections (see below). Read by Claude at the start of each loop iteration. Never modified by Claude. |
 | `<feature-name>-resolved.md` | Archive of resolved questions and criticisms. Two sections: `Questions` and `Criticism`. Append-only — never remove entries. Created on first resolution. |
 | `<feature-name>-critic-context.md` | Persistent working memory for the Critic subagent. Tracks active concerns, resolved concerns, and patterns noticed across iterations. Read and updated by the Critic on every invocation. |
+| `<feature-name>-boundary-context.md` | Persistent working memory for the Boundary Analyst subagent. Tracks identified subsystem boundaries, their interfaces, and how they evolve across iterations. |
 | `<feature-name>-journal.md` | Shared append-only design journal. Every subagent appends a timestamped, role-tagged entry summarizing its key observations. Gives all roles cross-iteration context in one place. |
 
 All files start with **headings only** — no content. Content is added by Claude (design/questions/criticism/resolved) or the user (answers) as the loop progresses.
@@ -98,6 +99,63 @@ every subsequent invocation (step 3c and restart).
 
 ---
 
+## `-boundary-context.md` Structure
+
+```markdown
+# Boundary Analysis
+
+## Identified Subsystems
+(Each subsystem as a named cluster of modules/processes with:
+- **Responsibility** — what this subsystem does as a black box
+- **Internal components** — modules/processes inside the boundary
+- **Public interface** — the narrow set of functions, messages,
+  or specs through which the rest of the system interacts with it,
+  with recommended formalization (see Interface Formalization below)
+- **Internal details hidden** — what callers should NOT know about
+- **Stability** — how settled this boundary is: firm / provisional /
+  speculative
+- **Independence assessment** — could another team develop this
+  subsystem given only the public interface? Could it be implemented
+  in a different language? If not, what coupling prevents it?
+- **Interface formalization** — how should this subsystem's public
+  interface be formally described? Pick the appropriate level:
+  - *Within a single language:* typespecs / @type / @callback
+    (Elixir Dialyzer), behaviours, protocols, TypeScript types,
+    Go interfaces — whatever the language provides
+  - *Across language/team boundaries:* JSON Schema for data
+    shapes, OpenAPI for HTTP interfaces, AsyncAPI for
+    message-based interfaces, Protocol Buffers / gRPC for
+    RPC, GraphQL schema for query APIs
+  - *Both:* when a subsystem has internal callers (same
+    language) AND external callers (other teams/languages),
+    define both — language-native types for internal use,
+    language-agnostic spec for the boundary contract
+  List the specific specs to produce and what each covers.)
+
+## Boundary Changes
+(How boundaries shifted across iterations. E.g. "Iteration 2:
+merged heartbeat and health-check into a single 'worker liveness'
+subsystem after user clarified they share timeout config.")
+
+## Distillation Opportunities
+(Existing code clusters that already behave as subsystems but lack
+a formal boundary. Listed only when formalizing the boundary would
+make the new feature's design cleaner. Each entry includes: which
+modules form the cluster, what interface the new feature would use,
+and what changes would be needed to formalize it.)
+
+## Boundary Tensions
+(Places where the design currently reaches across a boundary or
+where two subsystems are coupled in a way that undermines the
+black-box property. These are not necessarily problems — just
+tensions to be aware of.)
+```
+
+Created by the Boundary Analyst at step 1b. Read and updated on
+every subsequent invocation (step 3c and restart).
+
+---
+
 ## `-journal.md` Structure
 
 ```markdown
@@ -136,11 +194,21 @@ This step uses two subagents with distinct roles to separate authoring from crit
 
 The Author subagent does NOT write criticisms — it advocates for its own design. After writing, it initializes `<feature-name>-journal.md` with an "Iteration 1 — Author" entry summarizing key design decisions and rationale.
 
-**Step 1b — Critic subagent.** Read the design doc and questions produced by the Author, then independently read the same source files. Write:
-- `<feature-name>-criticism.md` — concerns, gaps, and risks in the proposed design
-- `<feature-name>-critic-context.md` — initialize with the Critic's active concerns, empty resolved section, and any initial patterns noticed
+**Step 1b — Critic + Boundary Analyst subagents (in parallel).** Both read the design doc and questions produced by the Author, then independently read the same source files.
 
-The Critic has not written the design and is explicitly prompted to distrust it: check every claim against actual code, look for what the Author overlooked, and challenge assumptions. The Critic may also add items to `-questions.md` if it identifies unknowns the Author missed. After writing, it appends an "Iteration 1 — Critic" entry to the journal.
+*Critic subagent:*
+- Write `<feature-name>-criticism.md` — concerns, gaps, and risks in the proposed design
+- Write `<feature-name>-critic-context.md` — initialize with active concerns, empty resolved section, and any initial patterns noticed
+- The Critic has not written the design and is explicitly prompted to distrust it: check every claim against actual code, look for what the Author overlooked, and challenge assumptions. May also add items to `-questions.md` if it identifies unknowns the Author missed.
+- Append an "Iteration 1 — Critic" entry to the journal.
+
+*Boundary Analyst subagent:*
+- Write `<feature-name>-boundary-context.md` — identify natural subsystem boundaries in the proposed design. Look for clusters of modules/processes that form cohesive units with narrow interfaces to the outside. For each boundary, define what's inside, what's the public interface, and what internal details should be hidden.
+- The Boundary Analyst reads the existing codebase to understand where current subsystem boundaries already exist and how the new feature's boundaries relate to them. **Distillation opportunity:** if the new feature would benefit from a formal boundary around existing code that currently lacks one (e.g. a cluster of modules that already behaves as a subsystem but has no defined interface), the Boundary Analyst should propose extracting/formalizing that boundary. This goes into "Identified Subsystems" tagged as `existing — proposed formalization` with a note on what the new feature gains from it. The Analyst does NOT propose refactoring for its own sake — only when the new feature's design would be cleaner or more decoupled as a result.
+- For each identified subsystem, also consider: **"Could this subsystem be developed independently by another team?"** and **"Could this subsystem be implemented in a different programming language?"** These are litmus tests for boundary quality — if the answer is no, the interface is probably too leaky or coupled to implementation details. This doesn't mean subsystems *should* be separate services or languages, just that a well-drawn boundary *could* support it.
+- **Interface formalization:** for each boundary, recommend how to formally describe the public interface. Use language-native types (typespecs, behaviours, protocols, Dialyzer annotations) for boundaries within a single codebase. Use language-agnostic specs (JSON Schema, OpenAPI, AsyncAPI, Protocol Buffers, GraphQL schema) where the boundary crosses — or could cross — a language or team boundary. When both apply, recommend both: language-native for internal callers, language-agnostic for the contract. The Analyst should be specific: not just "add a JSON Schema" but "define a JSON Schema for the WorkerState payload shape that both the Elixir consumer and the external producer validate against."
+- May add items to `-questions.md` if a boundary is ambiguous (e.g. "should heartbeat monitoring be part of the worker lifecycle subsystem or a separate observability subsystem?").
+- Append an "Iteration 1 — Boundary Analyst" entry to the journal.
 
 ### 2. User fills in `-answers.md`
 
@@ -162,7 +230,9 @@ The user populates Considerations, Questions, and Criticism sections.
 
 Issues found are added to `-questions.md` or `-criticism.md` before the convergence check. If no issues are found, the validator reports clean and processing continues. The Validator appends a journal entry summarizing its assessment.
 
-**Step 3c — Critic re-evaluation subagent.** After the Validator, launch the Critic subagent again. It reads:
+**Step 3c — Critic + Boundary Analyst re-evaluation (in parallel).** After the Validator, launch both subagents again.
+
+*Critic re-evaluation subagent.* Reads:
 - `<feature-name>-critic-context.md` — its own persistent context from prior iterations
 - The updated `<feature-name>.md` — to see how the design changed
 - `-resolved.md` — to assess whether resolutions genuinely addressed its prior concerns
@@ -176,6 +246,19 @@ The Critic then:
 5. Appends a journal entry summarizing what changed in its assessment
 
 If the Critic has active concerns tagged as "blocking" that haven't been addressed for 2+ iterations, it flags them explicitly to the user with an escalation note.
+
+*Boundary Analyst re-evaluation subagent.* Reads:
+- `<feature-name>-boundary-context.md` — its own persistent context
+- The updated `<feature-name>.md` — to see how resolved decisions affect boundaries
+- `-resolved.md` — decisions may have merged, split, or shifted subsystems
+- `-journal.md` — for cross-role context
+
+The Boundary Analyst then:
+1. Updates "Identified Subsystems" — boundaries may have shifted, merged, or split based on resolved decisions
+2. Logs changes in "Boundary Changes" with iteration number and reason
+3. Updates "Boundary Tensions" — new decisions may have introduced cross-boundary coupling or resolved prior tensions
+4. May add items to `-questions.md` if a decision made a boundary ambiguous
+5. Appends a journal entry summarizing boundary evolution
 
 **Convergence check:** After processing, report the net change in open items (e.g. "Resolved 4, added 1 — 3 remain"). If a loop iteration produces more new items than it resolves, flag this to the user explicitly — the design may need to be split into smaller sub-features.
 
@@ -193,7 +276,7 @@ After processing answers, check all three conditions:
 
 ### 4a. Parallel subagent review — `review [N]`
 
-Optional step before finalizing. Launches up to N specialized subagents **in parallel** (default N=6), each with a dedicated review role. Each subagent reads the design doc, `-journal.md` (for cross-iteration context), and all referenced source files but makes **no edits**. Before reporting on any file, each subagent must verify the file exists at the referenced path — if a referenced file is missing or has been renamed, report that as a Critical finding rather than assuming the file's contents.
+Optional step before finalizing. Launches up to N specialized subagents **in parallel** (default N=7), each with a dedicated review role. Each subagent reads the design doc, `-journal.md` (for cross-iteration context), and all referenced source files but makes **no edits**. Before reporting on any file, each subagent must verify the file exists at the referenced path — if a referenced file is missing or has been renamed, report that as a Critical finding rather than assuming the file's contents.
 
 | # | Role | Focus |
 |---|------|-------|
@@ -203,8 +286,9 @@ Optional step before finalizing. Launches up to N specialized subagents **in par
 | 4 | **API Reviewer** | Naming consistency, function signatures, module boundaries |
 | 5 | **Test Reviewer** | Are the proposed tests sufficient to catch regressions? Are there untested code paths? Prefer e2e tests that use real infrastructure (DB, message queues, blob storage) and only stub non-replicable external services. Flag any proposed unit tests that mock infrastructure that could be tested for real. Suggest specific test cases and red-green TDD sequences where applicable |
 | 6 | **Spec Reviewer** | Are all formal specifications (JSON Schema, OpenAPI, AsyncAPI, GraphQL schema, DB migrations) complete and valid? Do they match the prose design? Are there contracts described only in prose that should be formal specs? |
+| 7 | **Boundary Reviewer** | Read `-boundary-context.md`. Are subsystem boundaries clearly defined in the design? Are public interfaces narrow and sufficient? Does the design leak internal details across boundaries? Are there modules that straddle two subsystems and should be split? Does the design respect existing codebase boundaries or intentionally and explicitly change them? Is each boundary's interface formalized at the right level — language-native types for internal boundaries, language-agnostic specs (JSON Schema, OpenAPI, AsyncAPI, Protobuf) for cross-team/cross-language boundaries? Flag any boundary that lacks formal interface description. |
 
-When N < 6, pick the N most relevant roles for the feature. When N > 6, additional subagents repeat with increasing skepticism, cross-referencing findings from the first 6.
+When N < 7, pick the N most relevant roles for the feature. When N > 7, additional subagents repeat with increasing skepticism, cross-referencing findings from the first 7.
 
 Each subagent produces a structured report with severity ratings (Critical / High / Medium / Low / Info). Claude collates the reports, deduplicates overlapping findings, appends a combined "Review" journal entry summarizing findings by role, then updates the design to address all High+ findings and documents Low/Info findings as known tradeoffs.
 
@@ -221,11 +305,12 @@ After the review, re-assess for completion:
 - Are all formal specs referenced in the design present and accounted for?
 - Did any nuances from resolved criticisms get lost during consolidation?
 - Does the Critic's context show any unresolved concerns that weren't explicitly deferred?
+- Are subsystem boundaries from the Boundary Analyst's context clearly represented in the final doc — including public interfaces and hidden internals?
 - Are key insights from the journal reflected in the final doc?
 
 If the verifier finds gaps, Claude patches the consolidated section before proceeding.
 
-**Step 5c — Clean up.** Delete all sub-feature files (`-questions.md`, `-criticism.md`, `-answers.md`, `-resolved.md`, `-critic-context.md`, `-journal.md`, and `<feature-name>.md` itself).
+**Step 5c — Clean up.** Delete all sub-feature files (`-questions.md`, `-criticism.md`, `-answers.md`, `-resolved.md`, `-critic-context.md`, `-boundary-context.md`, `-journal.md`, and `<feature-name>.md` itself).
 
 After finalizing, read the **Known Deferred Work** section of the main design document and suggest **`next`** if there are remaining deferred items, naming the one you would pick next and why.
 
@@ -241,9 +326,65 @@ If the user wants to revisit a finalized feature — or creates a `<feature-name
 - `<feature-name>-answers.md` — empty, ready for the user
 - `<feature-name>-resolved.md` — empty (previous resolutions are already baked into the design doc)
 - `<feature-name>-critic-context.md` — fresh Critic context initialized from the existing design
+- `<feature-name>-boundary-context.md` — fresh Boundary Analyst context initialized from the existing design
 - `<feature-name>-journal.md` — initialized with a "Restart" entry noting what triggered the revisit
 
 Then suggest **`loop <feature-name>`** to continue.
+
+---
+
+## Standalone: Boundary Audit — `boundary-audit [scope]`
+
+A standalone command that scans existing code for implicit subsystems
+worth formalizing. Runs only when explicitly requested — never
+automatic. Does not require a feature to be in progress.
+
+**Input:** An optional scope to narrow the search (e.g. a directory,
+a supervision tree, a module cluster). If omitted, scans the full
+codebase.
+
+**Process:** Launch a Boundary Analyst subagent that reads the
+codebase within the given scope. It applies the same analysis as
+during the Design Flow — independence litmus tests, interface
+formalization levels, distillation opportunities — but without a
+driving feature. To compensate for the missing filter, the output
+is capped and ranked.
+
+**Output:** A short report (max 5 candidates) written to
+`boundary-audit-report.md` in the current working directory. Each
+candidate includes:
+
+```markdown
+### <Subsystem Name>
+
+**Modules:** (which existing modules form this cluster)
+
+**Evidence:** (why these modules behave as a subsystem — e.g.
+"called together by 6 different callers", "share a supervision
+subtree", "all access the same ETS table")
+
+**Current interface:** (how callers currently interact — scattered
+direct calls, shared GenServer, etc.)
+
+**Proposed boundary:** (what the formal public interface would
+look like — which functions, which specs)
+
+**Formalization:** (what specs to produce — typespecs/behaviours
+for internal, JSON Schema/OpenAPI/AsyncAPI for cross-boundary)
+
+**Benefit:** (what concretely improves — "new features targeting
+worker state would depend on 1 interface instead of 3 modules",
+"enables independent testing of the AMQP layer")
+
+**Effort:** low / medium / high
+```
+
+Candidates are ranked by benefit-to-effort ratio. The report is
+informational — the user decides which candidates (if any) to turn
+into Design Flow features via **`start <subsystem-name>`**.
+
+The report file is standalone and not part of any feature's file set.
+Delete it manually when no longer needed, or keep it as a backlog.
 
 ---
 
@@ -261,7 +402,7 @@ Then suggest **`loop <feature-name>`** to continue.
 
 ### Reviewing before finalize (optional)
 
-When the design has no gaps but you want a thorough review: **`review`** (defaults to 6 parallel reviewers) or **`review 3`** for fewer.
+When the design has no gaps but you want a thorough review: **`review`** (defaults to 7 parallel reviewers) or **`review 3`** for fewer.
 
 ### Finalizing
 
@@ -274,6 +415,10 @@ After finalizing, prompt: **`next`** to start the next highest-priority item fro
 ### Continuing / restarting a finalized feature
 
 Prompt: **`restart`** (or **`restart <feature-name>`** to specify a different feature)
+
+### Auditing existing code for subsystem boundaries
+
+Prompt: **`boundary-audit`** (full codebase) or **`boundary-audit lib/idunn_monitor/environment`** (scoped). Produces a ranked report of candidates. Turn promising ones into features with **`start`**.
 
 ---
 
@@ -290,8 +435,8 @@ Use it when there are genuine design decisions to make, trade-offs to weigh, or 
 
 ## Session Resumption
 
-All design state lives in the seven files — a fresh Claude session can pick up where the previous one left off. When resuming:
-1. Read all existing files for the feature (`<feature-name>.md`, `-questions.md`, `-criticism.md`, `-answers.md`, `-resolved.md`, `-critic-context.md`, `-journal.md`)
+All design state lives in the eight files — a fresh Claude session can pick up where the previous one left off. When resuming:
+1. Read all existing files for the feature (`<feature-name>.md`, `-questions.md`, `-criticism.md`, `-answers.md`, `-resolved.md`, `-critic-context.md`, `-boundary-context.md`, `-journal.md`)
 2. If `-answers.md` has content the user filled in, run **`loop`** to process it
 3. If `-answers.md` is empty/headings-only, report the current state (open questions count, open criticisms count) and wait for the user
 
@@ -308,7 +453,7 @@ Multiple features can be in-flight simultaneously — each has its own file set.
 ## Notes
 
 - After every iteration, suggest the applicable next command(s) to the user — e.g. **`loop <feature-name>`** if gaps remain, **`finalize <feature-name>`** if the design is complete, **`next`** after finalizing.
-- All six commands (`start`, `loop`, `review`, `finalize`, `restart`, `next`) accept an optional `<feature-name>`. `review` also accepts an optional reviewer count (default 6). For `next`, a name is not needed — it is derived from Known Deferred Work. When the name is omitted, use the last feature discussed in the current conversation. If no feature has been discussed yet and none can be inferred from context, ask the user to specify one.
+- All seven commands (`start`, `loop`, `review`, `finalize`, `restart`, `next`, `boundary-audit`) accept an optional `<feature-name>` (except `boundary-audit`, which accepts an optional scope path instead). `review` also accepts an optional reviewer count (default 7). For `next`, a name is not needed — it is derived from Known Deferred Work. When the name is omitted, use the last feature discussed in the current conversation. If no feature has been discussed yet and none can be inferred from context, ask the user to specify one.
 - When suggesting next commands after an iteration, omit the feature name from the suggestion if it matches the current feature — e.g. suggest **`loop`** rather than **`loop <feature-name>`**.
 - Process all answers in a single pass — do not ask follow-up questions mid-loop.
 - **Batch size guidance:** If a loop iteration produces more than 10 open questions, group them by theme and mark the groups with priorities (blocking / important / nice-to-have). This helps the user triage rather than face a wall of undifferentiated questions.
