@@ -29,3 +29,15 @@ resume                       — pick up interrupted work from file state
 retro                        — optional retrospective on the cycle
 abstraction-check <target>   — standalone: analyze abstraction tier consistency of any module/function
 ```
+
+## Dialog Flow
+
+A synchronous conversation mode for architectural decisions and design clarification. The human is the primary participant — Claude steers, probes, and captures decisions. Best for decisions where the human has domain context that subagents cannot replicate from code alone. Requires a concrete decision target (not just a topic) and grounding context (a pain point, upcoming need, or reference). Produces a single artifact file with Goal, Grounding, Decisions, and Open sections — no journals, no criticism files. Decisions feed directly into the Design Flow or stand alone.
+
+```
+(no commands — triggered by conversation)
+Input gate: concrete decision/concern + grounding context (pain point, need, or reference)
+Artifact: <topic>-dialog.org with Goal, Grounding, Decisions, Open sections
+Style: root-down exploration, checkpoint decisions with "we've arrived at X — correct?"
+Ends when: Goal has a decision, user redirects to formal flow, or user pauses
+```
