@@ -9,8 +9,8 @@ review-notes.
 
 ## Prerequisites
 
-- A finalized design exists in the project's main design document
-  (produced by the Design flow).
+- A finalized design exists at `designs/<feature>.org` (produced by
+  the Design flow).
 - If no finalized design is found, or the target feature is ambiguous,
   suggest starting the Design flow first or ask the user to specify
   which feature to implement.
@@ -21,18 +21,19 @@ review-notes.
 
 ## Files
 
-All implementation files live in the feature's documentation directory
-(same directory where the Design flow files lived).
+All implementation files live in `designs/<feature>-design/` (the
+same working directory used by the Design flow — recreated if it
+was cleaned up during design finalization).
 
 | File                       | Purpose                                                          |
 |----------------------------|------------------------------------------------------------------|
-| `<feature>-impl-plan.org`   | Two-section implementation plan: module relationships + build order. Temporary — deleted at finalize. |
+| `impl-plan.org`            | Two-section implementation plan: module relationships + build order. Temporary — deleted at finalize. |
 | `review-plan.org`          | Emacs org-mode file listing changed files grouped by concern     |
-| `review-notes.org`          | User's review notes — first-level headings per file              |
-| `review-notes-resolved.org` | Archive of resolved review notes with resolution explanations    |
-| `<feature>-review.org`      | Self-review output (persists for user reference)                 |
+| `review-notes.org`         | User's review notes — first-level headings per file              |
+| `review-notes-resolved.org`| Archive of resolved review notes with resolution explanations    |
+| `review.org`               | Self-review output (persists for user reference)                 |
 
-**File format:** All working files use **Emacs Org mode** (`.org`), not Markdown. Use Org syntax: `*` / `**` / `***` for headings, `*bold*`, `/italic/`, `=verbatim=`, `~code~`, `- ` for lists, `- [ ]` for checkboxes. For code blocks use `#+begin_src lang` / `#+end_src`. Do NOT slip into Markdown syntax (`##` headings, `**bold**`, triple backticks). The flow instruction files themselves (this file) remain Markdown — only the per-feature working files are Org. The `review-plan.org` was already Org.
+**File format:** All working files use **Emacs Org mode** (`.org`), not Markdown. Use Org syntax: `*` / `**` / `***` for headings, `*bold*`, `/italic/`, `=verbatim=`, `~code~`, `- ` for lists, `- [ ]` for checkboxes. For code blocks use `#+begin_src lang` / `#+end_src`. Do NOT slip into Markdown syntax (`##` headings, `**bold**`, triple backticks). The flow instruction files themselves (this file) remain Markdown — only the per-feature working files are Org. All org artifacts include `#+STARTUP: overview` so only top-level headings are visible by default in org-mode editors.
 
 ---
 
@@ -40,13 +41,13 @@ All implementation files live in the feature's documentation directory
 
 ### 1. Plan — automatic first step of `implement <feature-name>`
 
-Before writing code, produce `<feature>-impl-plan.org` using two
+Before writing code, produce `impl-plan.org` using two
 sequential subagents. This file has two sections.
 
 **Step 1a — Module Relationship subagent.** Read the finalized design
 and the existing codebase (supervision trees, module boundaries,
 behaviours, protocols, data flow). Write section 1 of
-`<feature>-impl-plan.org`:
+`impl-plan.org`:
 
 ```org
 * Module Relationships
@@ -79,7 +80,7 @@ describes the topology.
 
 **Step 1b — Plan subagent.** Read the module relationships (output of
 1a) and the finalized design. Write section 2 of
-`<feature>-impl-plan.org`:
+`impl-plan.org`:
 
 ```org
 * Implementation Plan
@@ -104,7 +105,12 @@ modules depend on them.)
 
 ### 2. Implement — automatic after step 1
 
-Follow the plan from `<feature>-impl-plan.org`. For each step in order:
+**Style calibration:** Before writing code, sample the user's recent
+commits (`git log --author` + read 1-2 touched files) to calibrate
+naming, structure, and idiom choices. The user's code is the
+authoritative style reference. Do this silently.
+
+Follow the plan from `impl-plan.org`. For each step in order:
 - Define interfaces and formal specs first (as identified in the plan)
 - Write the implementation
 - Write tests for the new code's key behaviors and edge cases — do not
@@ -143,7 +149,7 @@ against the actual code, not memory.
 
 | # | Role | Focus |
 |---|------|-------|
-| 1 | **Design Fidelity Reviewer** | Re-read the finalized design and diff intent vs. implementation. Flag any drift, missing pieces, undocumented deviations, or design decisions that were silently ignored |
+| 1 | **Design Fidelity Reviewer** | Re-read the finalized design and diff intent vs. implementation. Flag any drift, missing pieces, undocumented deviations, or design decisions that were silently ignored. Verify preserved invariants from the intake are maintained |
 | 2 | **Correctness Reviewer** | Logic errors, off-by-one mistakes, wrong assumptions, null/undefined handling, incorrect return types |
 | 3 | **Edge Case Reviewer** | Race conditions, failure modes, error handling paths, boundary conditions, concurrent access |
 | 4 | **Test Reviewer** | Are there behaviors or branches not covered by the new tests? Are tests hitting real infrastructure where possible, or unnecessarily mocking things that can run locally? Suggest missing test cases |
@@ -195,12 +201,12 @@ but makes **no edits**. Each produces a structured report with severity
 ratings (Critical / High / Medium / Low / Info).
 
 Claude collates and deduplicates the reports into
-`<feature>-review.org` in the feature documentation directory. This file
+`review.org` in the feature documentation directory. This file
 persists — the user may consult it to understand what was auto-fixed.
 
 ### 4. Fix — automatic after step 3
 
-Read `<feature>-review.org`. For each issue:
+Read `review.org`. For each issue:
 - Fixable → apply the fix
 - Blocking (design ambiguity, out of scope) → raise for discussion
 
@@ -281,13 +287,9 @@ implementation. It checks:
 If the verifier finds gaps, report them to the user before proceeding.
 The user can choose to address them now (back to step 6) or defer them.
 
-**Step 7b — Clean up.** Delete all implementation flow files from the
-feature documentation directory:
-- `<feature>-impl-plan.org`
-- `review-plan.org`
-- `review-notes.org`
-- `review-notes-resolved.org`
-- `<feature>-review.org`
+**Step 7b — Clean up.** Delete the entire working directory
+(`designs/<feature>-design/`). The design doc remains as the
+permanent record.
 
 Suggest **`commit`**.
 
@@ -310,18 +312,62 @@ relevant observations to memory if they want to refine the workflow.
 
 ---
 
+## Mid-Flow Communication
+
+These conventions apply throughout the flow.
+
+### Effort Forecast
+
+Before entering an autonomous phase, emit a one-line effort
+estimate:
+
+- **Light** — a single step, one or two subagents. "Stay here."
+- **Moderate** — multiple steps or parallel subagents, a few
+  minutes. "Check back shortly."
+- **Heavy** — full multi-phase autonomous run (implement + 
+  8-reviewer self-review + fix). "Good time to multitask."
+
+### Context Re-establishment
+
+After a **moderate** or **heavy** autonomous phase, open the next
+user-facing message with a 2-3 line recap:
+
+- What was being done
+- What happened (key outcomes: issues found, fixes applied,
+  tests passing/failing)
+- What comes next
+
+After a **light** pass, skip the recap.
+
+### Step-Boundary Steering
+
+Between flow phases, check if the user typed anything in chat.
+Treat messages as inline amendments (additional context, scope
+adjustments, corrections). Acknowledge briefly and incorporate
+into the next step.
+
+---
+
 ## Resuming Interrupted Work — `resume`
 
 If the user returns to a partially completed implementation (e.g. new
 session, interrupted work):
 
-1. Read all implementation files in the feature documentation directory
+Report state in **human-readable terms** — what was done and
+what happens next, never step numbers. The user should not need
+to know the flow's internal structure.
+
+Example: "Implementation of token search is complete. Self-review
+found 3 issues (2 fixed, 1 needs your input). review-plan.org is
+ready for your review."
+
+1. Read all implementation files in `designs/<feature>-design/`
 2. Check git status/diff to see what code changes exist
 3. Report current state: which step was last completed, what remains
 4. If `review-notes.org` has unprocessed notes → suggest **`loop`**
 5. If implementation is done but no review files exist → run step 3
    (self-review) onward
-6. If `<feature>-impl-plan.org` exists but no code changes → resume
+6. If `impl-plan.org` exists but no code changes → resume
    from step 2 (implement)
 7. If no files exist → start from step 1 (plan)
 
