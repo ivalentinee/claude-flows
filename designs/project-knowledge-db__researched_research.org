@@ -1,7 +1,7 @@
 #+STARTUP: overview
 #+TOC: headlines 2
 #+title:      Research: Denote System Applicability for General Project Knowledge DB
-#+filetags:   :research:denote:knowledge:zettelkasten:
+#+filetags:   :research:researched:denote:knowledge:zettelkasten:
 #+identifier: 20260714T154755
 #+signature:
 #+deferred:
@@ -14,21 +14,24 @@ as a general project knowledge DB, but the two primary use cases (code
 project facts vs. creative project knowledge graphs) have fundamentally
 different requirements and should be addressed separately.
 
-*** For Code Projects: Lightweight Knowledge Directory
+*** For Code Projects: Lightweight Notes Directory
 
 Goal 1 (code-undiscoverable facts) and Goal 3 (context optimization)
 are served by a simple extension:
 
-- A =knowledge/= directory alongside =designs/= with denote-named
-  org files containing atomic facts
+- A =notes/= directory alongside =designs/= with denote-named org
+  files containing atomic facts
 - Same front matter schema as design artifacts (=#+title:=,
-  =#+filetags:=, =#+identifier:=, =#+signature:=)
+  =#+filetags:=, =#+identifier:=, =#+signature:=) plus arbitrary
+  =#+key:= fields as needed
 - New type tag: =:fact:= for atomic knowledge entries
-- Queryable via existing =denote-query --dir knowledge/=
-- No typed relationships, no compiled views, no structure notes
+- Queryable via =denote-query --dir notes/= or =--dirs designs/,notes/=
+- No templates — notes are chaotic by nature. Denote front matter
+  provides the minimal structure; domain-specific fields are organic.
 - Claude discovers facts during code investigation and persists them;
   human adds facts that don't fit any design doc
-- Convergence gate extended to also scan =knowledge/= for related facts
+- Convergence gate extended to also scan =notes/= (via =--dirs=)
+- Lint runs at every flow init across all directories
 
 *Scale:* ~50-100 facts for a typical project. Full-corpus read is
 ~5-10K tokens — trivial for the 1M context window. No optimization
@@ -42,33 +45,31 @@ auto-loaded every session. Knowledge is queried on demand.
 *Abandonment risk:* Low. Adding 4 lines of front matter to a fact
 file is minimal overhead. =denote-query= already exists.
 
-*** For Creative Projects (TTRPG, Worldbuilding): Zettelkasten + denote-query
+*** For Creative Projects (TTRPG, Worldbuilding): Separate Design
 
-Goal 2 (genuine knowledge graph) requires more infrastructure:
+Goal 2 (genuine knowledge graph) requires more infrastructure and is
+tracked as a *separate design artifact*: "creative project knowledge
+graph." It shares =denote-query= tooling but differs in everything else.
 
-- A dedicated =notes/= directory (or =knowledge/=) with subdirectories
-  by entity type (=characters/=, =atlas/=, =organizations/=, =lore/=,
-  =campaigns/=)
-- Extended front matter with domain-specific fields (=#+type:=,
-  =#+faction:=, =#+location:=, =#+status:=, =#+aliases:=)
-- Entity templates per type (NPC, location, faction, session)
-- Structure notes (tagged =:structure:=) defining compilation order
-  and narrative flow for document generation
+Key characteristics (to be designed separately):
+
+- Same =notes/= directory with subdirectories by entity type
+  (=characters/=, =atlas/=, =organizations/=, =lore/=, =campaigns/=)
+- Extended front matter with domain-specific =#+key:= fields
+  (=#+faction:=, =#+location:=, =#+aliases:=) — extracted by the
+  extended AWK scanner
+- No templates — notes are chaotic. Denote front matter is the only
+  prescribed structure; domain-specific fields are organic per project
+- Structure notes (tagged =:structure:=) for compilation ordering
 - Cross-linking via =[[denote:ID][Title]]= identifier-based links
-- Embedded =denote-query= calls in =#+begin_src shell= blocks for
-  semi-dynamic entity queries ("all NPCs in this location")
-- New =denote-query= subcommands: =table= (Dataview TABLE equivalent),
-  =orphans= (unlinked notes), =recent= (recently modified),
-  =count-by= (aggregation)
+- New =denote-query= subcommands: =table=, =orphans=, =recent=,
+  =count-by=, =field= (arbitrary field query)
 
 *Authorship model:* Human-primary for lore and setting content. Claude
 reads, queries, compiles, and maintains cross-reference integrity.
-Claude does NOT author creative content unless asked.
 
-*Compilation:* Claude reads a structure note that defines the order,
-then reads all referenced entity notes, then weaves them into a
-final document. The structure note is the "table of contents" for
-compilation — a Zettelkasten pattern.
+*Compilation:* Claude reads a structure note, reads referenced entity
+notes, weaves into a final document. Structure note = table of contents.
 
 *Abandonment risk:* Medium. Entity templates and structure notes
 require ongoing discipline. The Karpathy insight applies: AI should
@@ -93,19 +94,20 @@ content per note. This is speculative and deferred.
 
 *** Design Dimensions Summary
 
-| Dimension        | Code Project KB          | Creative Project KB         |
-|------------------+--------------------------+-----------------------------|
-| Directory        | =knowledge/=             | =notes/= with subdirs       |
-| Front matter     | Standard 4 fields        | Extended (domain-specific)   |
+| Dimension        | Code Project KB          | Creative Project KB          |
+|------------------+--------------------------+------------------------------|
+| Directory        | =notes/=                 | =notes/= with subdirs        |
+| Front matter     | Standard 4 + organic     | Standard 4 + domain fields   |
 | Types            | =:fact:=                 | =:npc:location:faction:...=  |
 | Relationships    | Tags only                | Typed fields + ID links      |
 | Structure notes  | Not needed               | Essential for compilation    |
-| Templates        | Not needed               | Per-entity-type              |
-| denote-query     | Existing subcommands     | New: table, orphans, recent  |
+| Templates        | None (chaotic)           | None (chaotic)               |
+| denote-query     | Existing + =--dirs=      | New: table, orphans, field   |
 | Authorship       | Claude-primary           | Human-primary                |
 | Scale            | 50-100 facts             | 500+ notes                   |
 | Context budget   | ~5-10K tokens            | ~50-100K tokens              |
 | Compiled views   | No                       | No (at current scale)        |
+| Design scope     | This research            | Separate design artifact     |
 | Abandonment risk | Low                      | Medium                       |
 
 *** Confidence
@@ -261,34 +263,48 @@ directories don't prevent cross-linking.
 - Scope re-centered on the 3 stated goals
 - Abandonment risk assessed per recommendation
 
-** Open Questions
+** Decision
 
-1. *Knowledge directory naming:* =knowledge/= vs =notes/= vs =kb/=?
-   Should the name differ between code and creative projects?
+All open questions resolved. Decisions below.
 
-2. *denote-query --dir default:* Should the script support a =--dirs=
-   flag to scan multiple directories (=designs/= + =knowledge/=) in
-   one call? Or use =--dir .= to scan everything?
+*** Directory naming
+=notes/= — consistent across all project types. Both code projects and
+creative projects use =<project>/notes/= for knowledge entries.
 
-3. *AWK scanner extension:* Should the AWK scanner be extended to
-   extract arbitrary =#+key:= fields (for TTRPG-specific metadata
-   like =#+faction:=, =#+location:=)? Or should domain-specific
-   fields be packed into filetags?
+*** Multi-directory queries
+=denote-query= gets a =--dirs= flag accepting comma-separated paths
+(e.g., =--dirs designs/,notes/=). This enables scoped queries like
+"search designs and LLM wiki but not raw notes." The existing =--dir=
+flag (single directory) is preserved for backward compatibility.
 
-4. *Lint trigger:* When should lint run? At every flow init (adds
-   latency)? As a standalone command? Periodically (daily/weekly)?
+*** AWK scanner extension
+The AWK scanner is extended to extract arbitrary =#+key:= fields, not
+just the hardcoded 5. This enables domain-specific queries (e.g.,
+=denote-query field faction "Thieves Guild"=) without packing
+everything into filetags.
 
-5. *Memory ↔ knowledge migration:* Should existing memory entries
-   that contain factual knowledge (e.g., =project_scaling_bugs.md=)
-   be migrated to the knowledge DB? Or leave them where they are?
+*** Lint trigger
+Lint runs at every flow init, alongside the convergence gate. This
+catches heading drift early. Latency is negligible (<20ms at 200 files).
 
-6. *Creative KB as a separate design:* Should the TTRPG/creative KB
-   be a separate design flow artifact from the code KB? They share
-   =denote-query= but differ in everything else.
+*** Memory ↔ knowledge boundary
+No automatic migration. Memory entries stay in Claude Code's memory
+system. If migration is needed, the user requests it explicitly.
+Boundary rule: behavioral directives → memory; factual knowledge →
+=notes/=.
 
-7. *Entity template format:* Should entity templates (NPC, location,
-   etc.) be defined in =DENOTE.md= (the schema layer), in a separate
-   =TEMPLATES.md=, or as actual template files in the KB directory?
+*** Creative KB scope
+The TTRPG/creative knowledge graph is a separate design artifact from
+the code-project knowledge directory. They share =denote-query= tooling
+but differ in directory structure, metadata schema, authorship model,
+and query patterns. Tracked as a separate design: "creative project
+knowledge graph."
+
+*** No templates
+The knowledge system does not prescribe entity templates. Notes are
+chaotic by nature. The denote front matter (=#+title:=, =#+filetags:=,
+=#+identifier:=) provides the minimal structure; domain-specific fields
+(=#+faction:=, =#+location:=) are added organically per project.
 
 -----
 
