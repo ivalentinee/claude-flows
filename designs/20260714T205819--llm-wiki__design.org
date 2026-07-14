@@ -1,0 +1,35 @@
+#+STARTUP: overview
+#+title:      LLM Wiki: AI-Maintained Knowledge Layer
+#+date:       [2026-07-14 Mon 20:58]
+#+filetags:   :design:denote:knowledge:llm-wiki:
+#+identifier: 20260714T205819
+#+signature:
+#+deferred:
+* LLM Wiki: AI-Maintained Knowledge Layer
+
+** Goal
+Implement a Karpathy-inspired AI-maintained wiki layer — a dedicated
+directory of Claude-authored knowledge pages derived from raw sources
+(codebase, conversations, documents). Separate from human-authored
+=notes/= (chaotic, organic) and from =designs/= (lifecycle-tracked).
+
+Three operations: ingest (add knowledge from sources), query (search +
+synthesize), lint (detect staleness, contradictions, orphans).
+
+Key insight from research: AI handles bookkeeping, humans handle
+curation. Schema quality determines system quality.
+
+** References
+- =20260714T154755--project-knowledge-db__research_researched.org= —
+  research on knowledge DB applicability (Karpathy model = Option B)
+- Karpathy's LLM OS/wiki: https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f
+
+** Constraints
+
+** Acceptance Criteria
+
+** Design
+
+** Sub-features
+
+** Known Deferred Work

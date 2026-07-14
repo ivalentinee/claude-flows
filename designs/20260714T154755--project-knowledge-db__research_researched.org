@@ -307,6 +307,150 @@ chaotic by nature. The denote front matter (=#+title:=, =#+filetags:=,
 =#+identifier:=) provides the minimal structure; domain-specific fields
 (=#+faction:=, =#+location:=) are added organically per project.
 
+** Addendum: Fact Recording Criteria
+
+This section defines when Claude should record a discovery as a
+=:fact:= note in the project =notes/= directory. Full research
+findings are in
+=designs/fact-recording-criteria-findings.org=.
+
+*** The Core Problem
+
+Claude discovers hundreds of facts during a session. Recording
+everything creates noise (wasted tokens on query, stale facts that
+mislead). Recording nothing defeats the purpose of the knowledge DB.
+The threshold must be biased toward NOT recording.
+
+*** Decision Framework
+
+A fact passes the recording threshold if it clears all three gates:
+
+**** Gate 1: Novelty (eliminates ~80% of candidates)
+
+Do NOT record if the fact is:
+- Already stated in CLAUDE.md, design docs, or inline comments
+- Directly readable from a single source file (a config value, a
+  constant, a function signature — anything grep-able)
+- Discoverable via =git log= or =git blame= without interpretation
+- A standard property of a well-known technology (documented in
+  official docs)
+- A user preference or behavioral directive (those go in memory)
+
+**** Gate 2: Stability (eliminates ~10% of remaining)
+
+Do NOT record if the fact is:
+- Likely to change within the current work scope (the next commit,
+  the current PR)
+- Describing a temporary workaround or debugging observation
+- About code that is actively being refactored
+
+Exception: volatile facts that are *extremely* expensive to
+rediscover may be recorded with a =:volatile:= tag and a note
+about expected lifetime.
+
+**** Gate 3: Retrieval Cost (the positive test)
+
+RECORD if the fact requires *significant investigation* to rediscover:
+- Reading 3+ files and tracing cross-module interactions
+- Understanding implicit conventions not stated in any single file
+- Running benchmarks or experiments to reproduce
+- Discovering through trial-and-error with external systems
+- Connecting information scattered across multiple subsystems
+
+OR record if the fact is *non-obvious / counter-intuitive*:
+- A competent developer familiar with the stack would NOT guess it
+- The system behaves differently from what documentation suggests
+- An edge case or behavioral quirk discovered through debugging
+  that has general applicability
+
+*** Fact Categories (by recording value)
+
+| Category                 | Retrieval Cost | Stability | Record?    |
+|--------------------------+----------------+-----------+------------|
+| Implicit conventions     | High           | High      | Always     |
+| Performance benchmarks   | Very high      | Medium    | Always     |
+| Behavioral quirks        | Very high      | High      | Always     |
+| Integration constraints  | Very high      | High      | Always     |
+| Architecture decisions   | Medium         | Very high | If no ADR  |
+| System parameters        | Low-medium     | Med-high  | Sometimes  |
+| Dependency behavior      | Med-high       | Medium    | If non-obvious |
+
+*** What the Fact Note Looks Like
+
+#+begin_example
+#+title:      Operation spawn overhead without pooling
+#+date:       [2026-07-14 Mon 16:00]
+#+filetags:   :fact:performance:operation:
+#+identifier: 20260714T160000
+
+Spawning a new Node.js operation process takes ~3.4 seconds on
+average (measured on Azure D4s_v3 instances, July 2026). This
+includes process creation, V8 initialization, and wrapper script
+bootstrap.
+
+This motivated the introduction of the operation pool
+([[file:20260714T153000--operation-pool__design_implemented.org]]).
+#+end_example
+
+Format:
+- Standard denote front matter (4 fields + optional =#+signature:=)
+- =:fact:= type tag in =#+filetags:=
+- Body: 1-3 paragraphs stating the fact, its context, and how it
+  was discovered or measured
+- Cross-references to related design docs or other facts via
+  =[[file:]]= links
+- No prescribed structure beyond front matter — notes are chaotic
+
+*** Boundary with Claude Code Memory
+
+| Criterion        | → Memory                    | → Knowledge (notes/)         |
+|------------------+-----------------------------+------------------------------|
+| Starts with verb | "Use E2E tests"             |                              |
+| States a fact    |                             | "Pool cap is 40"             |
+| User correction  | "Don't use grouped aliases" |                              |
+| Code discovery   |                             | "Spawn overhead is 3.4s"     |
+| Loading          | Auto-loaded every session   | Queried on demand            |
+| Staleness risk   | Low (behaviors are stable)  | Medium (facts change)        |
+
+Rule of thumb: if the entry is an imperative ("always do X", "prefer
+Y over Z"), it's a memory directive. If it asserts a fact about the
+system, it's a knowledge note.
+
+*** Anti-Patterns (What NOT to Record)
+
+1. *Code mirrors:* "The default port is 3000" — readable from config
+2. *Git-discoverable:* "Module X was refactored on date Y"
+3. *Documentation echoes:* Facts already in CLAUDE.md or design docs
+4. *Debugging ephemera:* "The test failed because mock returned nil"
+5. *In-flight changes:* "The supervisor is being replaced by a pool"
+6. *Common knowledge:* "PostgreSQL supports JSON columns"
+7. *Behavioral directives:* "Prefer E2E tests" (goes in memory)
+
+*** Relationship to External Research
+
+The criteria synthesize three well-supported frameworks:
+
+- *Retrieval cost model* (cognitive science): externalize when
+  rediscovery is more expensive than recording. This is the primary
+  criterion.
+- *Negative value test* (Karpathy): a stale fact is worse than no
+  fact. This drives the stability gate and the anti-pattern against
+  code mirrors.
+- *Reusability lens* (Zettelkasten): write for a future reader who
+  lacks your current context. For project facts, the "future reader"
+  is a future Claude session starting from zero.
+
+Progressive summarization (Forte) is explicitly rejected: it
+optimizes for personal notebooks with revisitation, not for a shared
+DB queried by an amnesic agent. Upfront filtering is essential.
+
+*** Confidence
+
+High. The retrieval-cost heuristic is well-supported by cognitive
+science, aligns with the user's stated use case ("usually requires a
+lot of code/doc digging"), and naturally produces a conservative
+recording threshold (~5-15 facts per major feature investigation).
+
 -----
 
 /Appendix: intake sections follow./

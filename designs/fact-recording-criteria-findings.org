@@ -1,0 +1,510 @@
+#+STARTUP: overview
+#+TOC: headlines 3
+#+title:      Fact Recording Criteria: Research Findings
+#+date:       [2026-07-14 Mon]
+#+filetags:   :research:knowledge:criteria:
+#+identifier: 20260714T220000
+
+* Fact Recording Criteria: Research Findings
+
+This document contains detailed research findings informing the
+criteria for when Claude should record a discovery as a =:fact:= note
+in the project knowledge DB (=notes/= directory).
+
+** 1. External Research: What Existing Systems Say
+
+*** 1.1 Zettelkasten Tradition
+
+The Zettelkasten method, as practiced by Niklas Luhmann and described
+by Soenke Ahrens ("How to Take Smart Notes"), distinguishes three
+note types with different persistence thresholds:
+
+- *Fleeting notes:* Quick captures during reading or thinking.
+  Temporary. Discarded after processing. Threshold: none — capture
+  anything that comes to mind.
+- *Literature notes:* Summaries of source material in your own words.
+  Kept as references. Threshold: you read/studied something worth
+  referencing later.
+- *Permanent notes:* Atomic ideas written for future reuse. Threshold:
+  the idea can stand alone, connects to existing knowledge, and is
+  written in your own words (not copied).
+
+Key insight from zettelkasten.de: "You form a Zettel in a manner that
+allows you the most efficient use even if another person would have to
+use it." The criterion is *reusability by a future reader who lacks
+your current context*.
+
+For our use case (Claude-discovered project facts), the "future reader"
+is a future Claude session. The question becomes: would a future
+session benefit from having this pre-discovered, or would rediscovery
+be trivial?
+
+*** 1.2 Andy Matuschak's Evergreen Notes
+
+Matuschak identifies five properties of notes worth keeping:
+
+1. *Atomic:* one idea per note, completable in <30 minutes
+2. *Concept-oriented:* organized by idea, not by source
+3. *Densely linked:* connected to related concepts
+4. *Non-hierarchical:* associative, not taxonomic
+5. *Written for yourself:* personal clarity, not audience
+
+His threshold: "Most consumed material doesn't warrant this
+investment — only pieces that genuinely connect to your developing
+thinking."
+
+Relevance: For code project facts, atomicity is essential (one fact
+per file). The "concept-oriented" principle maps to organizing by
+what the fact IS about, not where/when it was discovered.
+
+*** 1.3 Tiago Forte's PARA / Second Brain
+
+Forte explicitly rejects upfront filtering: "I don't have an explicit
+set of criteria on what to keep. I just capture anything that feels
+insightful, interesting, or useful."
+
+He relies on *progressive summarization* — capture broadly, then
+refine through repeated passes. Importance reveals itself through
+revisitation frequency.
+
+Relevance: This approach is WRONG for our use case. Claude's =notes/=
+directory is not a personal notebook with progressive refinement. It's
+a shared knowledge base queried on demand. Noise has direct cost
+(wasted tokens, false positives in =denote-query=). We need upfront
+filtering, not progressive summarization.
+
+*** 1.4 Karpathy's LLM Wiki Model
+
+Karpathy's model distinguishes what belongs in the wiki vs what
+doesn't:
+
+*Include:* Entity pages, concept syntheses, decision records with
+rationale, assumption registers, cross-references.
+
+*Exclude:* "Temporary debugging or abandoned approaches," "redundant
+mirrors of small, greppable source files," "unvetted machine-generated
+hints (until human-reviewed)."
+
+Key criterion: Does the fact create *negative value* if recorded? A
+redundant mirror of a greppable source file creates negative value
+because it can go stale and contradict the source. This is the
+*staleness risk* filter.
+
+Relevance: Directly applicable. Facts that mirror code (and will
+diverge when code changes) should NOT be recorded. Facts that
+describe emergent properties not visible in any single file SHOULD be.
+
+*** 1.5 Mem0 Memory Management
+
+Mem0 uses application-specific custom instructions rather than
+universal heuristics. The developer defines what's relevant for their
+domain. Categories include: relevance-based (only what matters for the
+application), privacy-conscious (exclude sensitive data), context-
+dependent (different contexts extract different data), quality-filtered
+(remove noise).
+
+Relevance: The "application-specific" approach applies. Our criteria
+should be specific to code projects, not generic.
+
+*** 1.6 ChatGPT / Claude Memory Systems
+
+Both systems focus on *behavioral* memory: user preferences, style
+directives, recurring instructions. They persist "how to behave" not
+"what is true about the codebase." This is exactly the boundary the
+existing research identified: Memory = behavioral, Knowledge = factual.
+
+*** 1.7 Cognitive Science: External Memory and Offloading
+
+Key findings from cognitive science research:
+
+- People externalize information when *retrieval cost exceeds
+  recording cost*. If looking something up is harder than writing it
+  down, write it down.
+- The "Google effect" (Sparrow et al., 2011): people forget
+  information they believe is easily retrievable. For code: facts
+  that are easily grep-able are "Google-effect safe" — forgetting
+  them is fine because retrieval is cheap.
+- Transactive memory (Wegner, 1987): groups distribute knowledge by
+  specialization. The =notes/= directory is Claude's "specialist
+  colleague" for project facts — it holds knowledge so Claude doesn't
+  have to rediscover it each session.
+
+The cognitive science lens strongly supports the *retrieval cost*
+heuristic as the primary criterion.
+
+** 2. Analysis: Competing Heuristics
+
+Five candidate heuristics for the recording threshold, with analysis:
+
+*** 2.1 Retrieval Cost Criterion
+
+*Record if rediscovering this fact would require reading >5 files or
+tracing a call chain across >2 modules.*
+
+Strengths:
+- Directly addresses the user's stated use case ("usually requires a
+  lot of code/doc digging")
+- Measurable (count files/modules involved)
+- Naturally biased toward NOT recording (most facts are localized)
+- Aligns with cognitive offloading research (externalize when
+  retrieval is expensive)
+
+Weaknesses:
+- "5 files" is somewhat arbitrary
+- Doesn't account for facts that are in 1 file but deeply buried
+  (e.g., a timeout value in a config file 3 levels of imports deep)
+
+Verdict: *Primary criterion.* The threshold should be phrased in terms
+of investigation effort, not strict file counts.
+
+*** 2.2 Surprise Criterion
+
+*Record if the fact is non-obvious or counter-intuitive — something
+a competent developer would NOT guess.*
+
+Strengths:
+- Captures genuinely valuable knowledge (the "I would never have
+  guessed" category)
+- Low false positive rate (truly surprising facts are rare)
+- Aligns with Matuschak's "connects to developing thinking"
+
+Weaknesses:
+- Subjective — Claude's "surprise" is not well-calibrated
+- May miss important-but-unsurprising facts (e.g., "the pool cap is
+  40" is not surprising but is useful to know)
+
+Verdict: *Secondary criterion.* Useful as a tiebreaker: if a fact is
+both costly to retrieve AND surprising, definitely record it.
+
+*** 2.3 Frequency Criterion
+
+*Record if the fact is likely to be needed in >2 future sessions.*
+
+Strengths:
+- Prevents recording one-off debugging discoveries
+- Aligns with Forte's "importance reveals itself through revisitation"
+
+Weaknesses:
+- Hard to predict future need
+- Claude has no memory of past sessions' queries (can't count)
+- Bias toward recording common facts that might already be obvious
+
+Verdict: *Weak criterion on its own.* Better used as a filter: if a
+fact will NEVER be needed again (e.g., "the bug was in line 47 of
+file X"), don't record it regardless of other criteria.
+
+*** 2.4 Coupling Criterion
+
+*Record if the fact describes a relationship between >1 subsystem —
+not localized to a single file or module.*
+
+Strengths:
+- Cross-cutting facts are the hardest to rediscover (no single file
+  to grep)
+- Captures integration constraints, protocol details, implicit
+  contracts
+- Low noise (most facts ARE localized)
+
+Weaknesses:
+- Misses single-module facts that are still hard to find (deeply
+  nested config)
+- Over-emphasizes architecture, under-emphasizes parameters
+
+Verdict: *Strong supporting criterion.* Especially valuable for
+integration constraints ("Azure Batch requires job IDs < 64 chars")
+that exist at system boundaries.
+
+*** 2.5 Volatility Anti-Criterion
+
+*Do NOT record if the fact is likely to change within 1-2 sprints.*
+
+Strengths:
+- Prevents stale facts (Karpathy's primary failure mode: "pages
+  silently go stale")
+- Easy to assess: is this a temporary workaround or a stable property?
+- Aligns with Karpathy's "redundant mirrors create negative value"
+
+Weaknesses:
+- Some volatile facts are so expensive to rediscover that recording
+  them (with a volatility warning) is still net positive
+- Hard to predict what will change
+
+Verdict: *Essential filter.* Should be applied as a gate: volatile
+facts need explicit justification to be recorded, and should carry
+a =:volatile:= tag.
+
+** 3. Fact Type Taxonomy for Code Projects
+
+*** 3.1 System Parameters
+
+Examples: "operation pool cap is 40", "default operation timeout is
+30s", "max concurrent template runs is 10"
+
+- Stability: Medium-high (change with config updates)
+- Frequency of need: High (referenced in design discussions)
+- Retrieval cost: Low-medium (usually in a config file, but which one?)
+- Recording value: Medium — only record if scattered across multiple
+  config sources or if the effective value differs from the nominal
+  config value due to runtime logic
+
+*** 3.2 Implicit Conventions
+
+Examples: "video frame numbers are strings in JSON but integers
+internally", "all AMQP message payloads use camelCase keys", "Elixir
+schema fields use snake_case with source: DB mapping"
+
+- Stability: High (conventions rarely change)
+- Frequency of need: High (every time touching that subsystem)
+- Retrieval cost: High (conventions are scattered across code, not
+  documented anywhere)
+- Recording value: HIGH — these are the prime candidates for =:fact:=
+  notes. Implicit conventions are the hardest knowledge to rediscover
+  because no single file defines them.
+
+*** 3.3 Architecture Decisions
+
+Examples: "port-based comms was replaced by Unix sockets in July
+2024", "RabbitMQ was chosen over Redis Streams for work queue"
+
+- Stability: Very high (past decisions don't change)
+- Frequency of need: Medium (referenced when revisiting decisions)
+- Retrieval cost: Medium (git history helps, but reasoning is often
+  not captured in commit messages)
+- Recording value: Medium — record only if the decision RATIONALE
+  is not captured in a design document or ADR. If a design doc
+  exists, link to it instead.
+
+*** 3.4 Performance Characteristics
+
+Examples: "spawn overhead is ~3.4s per operation without pooling",
+"full template compilation takes ~200ms for a 50-node graph"
+
+- Stability: Medium (changes with code changes, but baseline is
+  useful)
+- Frequency of need: Medium (performance work, capacity planning)
+- Retrieval cost: Very high (requires running benchmarks to
+  rediscover)
+- Recording value: HIGH — benchmark results are expensive to
+  reproduce and inform future design decisions. Tag with date
+  and conditions.
+
+*** 3.5 Behavioral Quirks
+
+Examples: "the compiler silently drops nodes with no inputs", "Azure
+Batch retries failed tasks 3 times before marking the job failed",
+"RabbitMQ connection recovery takes ~5s after a broker restart"
+
+- Stability: High (quirks tend to persist across versions)
+- Frequency of need: Low-medium (only when debugging related issues)
+- Retrieval cost: Very high (often discovered through painful
+  debugging)
+- Recording value: HIGH — these are the "I spent 2 hours figuring
+  this out" facts that save massive time on rediscovery.
+
+*** 3.6 Integration Constraints
+
+Examples: "Azure Batch requires job IDs < 64 chars", "RabbitMQ
+message size limit is 128MB but practical limit is ~16MB",
+"Azurite doesn't support all Azure Blob Storage API features"
+
+- Stability: High (external system constraints)
+- Frequency of need: Low (only when building integrations)
+- Retrieval cost: Very high (requires reading external docs or
+  discovering through trial and error)
+- Recording value: HIGH — external constraints are invisible in
+  the codebase and expensive to rediscover.
+
+*** 3.7 Dependency Knowledge
+
+Examples: "RabbitMQ retry uses exponential backoff, max 30s",
+"Ecto changeset validation runs in declaration order", "Jason
+encoder handles atoms but not MapSets"
+
+- Stability: Medium (changes with dependency upgrades)
+- Retrieval cost: Medium-high (requires reading dependency source)
+- Recording value: Medium — record only if the behavior is
+  non-obvious and affects our code. Standard documented behavior
+  of well-known libraries doesn't need recording.
+
+*** 3.8 Summary Matrix
+
+| Category                 | Stability | Need Freq. | Retrieval Cost | Record? |
+|--------------------------+-----------+------------+----------------+---------|
+| System parameters        | Med-High  | High       | Low-Med        | Sometimes |
+| Implicit conventions     | High      | High       | High           | YES     |
+| Architecture decisions   | Very High | Medium     | Medium         | If no ADR |
+| Performance chars        | Medium    | Medium     | Very High      | YES     |
+| Behavioral quirks        | High      | Low-Med    | Very High      | YES     |
+| Integration constraints  | High      | Low        | Very High      | YES     |
+| Dependency knowledge     | Medium    | Low-Med    | Med-High       | Sometimes |
+
+The pattern: *high retrieval cost + high stability = always record*.
+Low retrieval cost (greppable) or low stability (will change soon) =
+probably don't record.
+
+** 4. Anti-Patterns: What NOT to Record
+
+*** 4.1 Facts Already in the Code
+
+If a fact is directly readable from a single source file with a
+clear variable name or comment, recording it creates a stale mirror.
+
+Bad: "The default port is 3000" (it's in =config/default.json=)
+Bad: "The User model has a name field" (it's in the schema)
+
+Exception: Record if the *effective* value differs from the nominal
+value due to runtime logic, overrides, or environment-specific
+behavior that requires reading multiple files to understand.
+
+*** 4.2 Facts in Git History
+
+Git log and blame provide a queryable history. Facts about WHEN
+something changed or WHO changed it belong in git, not in notes.
+
+Bad: "The pool module was refactored on 2024-07-10"
+Bad: "Commit abc123 fixed the race condition in Runner"
+
+Exception: Record if the git history is misleading (squashed merges
+that hide context) or if the REASONING behind a change is not
+captured in the commit message and is non-obvious.
+
+*** 4.3 Facts in Existing Documentation
+
+If CLAUDE.md, README, or a design document already states the fact,
+recording it again creates staleness risk.
+
+Bad: "Run tests with =npm run test-server=" (it's in CLAUDE.md)
+Bad: "The compilation pipeline is Parse -> Resolve -> Validate..."
+     (it's in CLAUDE.md Architecture section)
+
+*** 4.4 Transient Debugging Observations
+
+Facts discovered during debugging that are specific to a particular
+bug and have no general applicability.
+
+Bad: "The test failed because the mock returned undefined instead
+of null"
+Bad: "The race condition occurs when process A sends before process
+B has registered"
+
+Exception: Record if the debugging reveals a *general* behavioral
+quirk that will affect future development (see 3.5).
+
+*** 4.5 User Preferences and Behavioral Directives
+
+These belong in Claude Code memory, not in the knowledge DB.
+
+Bad: "The user prefers E2E tests" (goes in memory)
+Bad: "Always use individual alias declarations" (goes in memory)
+
+The boundary: "how to behave" -> memory. "What is true about the
+system" -> notes.
+
+*** 4.6 Facts That Will Change with the Next Commit
+
+If the fact describes something currently being changed (the current
+PR, the current implementation), it will be stale by the time
+the session ends.
+
+Bad: "The operation supervisor is being replaced by a pool" (this
+is the current work; when it's done, the fact is already outdated)
+
+Exception: Record if the fact will SURVIVE the current change and
+remain true afterward.
+
+*** 4.7 Obvious Properties of Standard Technologies
+
+Facts that any developer working with the technology would know or
+could trivially look up in official docs.
+
+Bad: "PostgreSQL supports JSON columns" (common knowledge)
+Bad: "GenServer handles synchronous calls with handle_call" (Elixir
+101)
+
+Exception: Record if the standard technology behaves unexpectedly in
+THIS project's specific configuration or usage pattern.
+
+** 5. Relationship to Claude Code Memory System
+
+The existing memory system (=~/.claude/projects/*/memory/=) stores:
+
+| Entry                    | Type       | Content                        |
+|--------------------------+------------+--------------------------------|
+| Code conventions         | Behavioral | "Use snake_case with source:"  |
+| Flow preferences         | Behavioral | "Prefer full flow"             |
+| Testing approach         | Behavioral | "Extend existing E2E tests"    |
+| Bug tracking conventions | Reference  | "Bug 15864 umbrella format"    |
+| Review discipline        | Behavioral | "Self-review always mandatory" |
+
+Pattern: Memory entries are *directives* — they tell Claude how to
+act. They are auto-loaded every session. They answer "what should I
+do?" not "what is true about the system?"
+
+The =notes/= knowledge DB fills a different role:
+
+| Aspect        | Memory                 | Knowledge (notes/)           |
+|---------------+------------------------+------------------------------|
+| Content       | Behavioral directives  | Factual assertions           |
+| Loading       | Auto-loaded            | Queried on demand            |
+| Authorship    | User corrections       | Claude discoveries + user    |
+| Update driver | User feedback          | Code investigation           |
+| Staleness     | Low risk (behaviors    | Medium risk (facts change    |
+|               | change slowly)         | when code changes)           |
+| Format        | Markdown, free-form    | Org, denote front matter     |
+| Examples      | "Use E2E tests"        | "Pool cap is 40"             |
+|               | "Prefer full flow"     | "Spawn overhead is ~3.4s"    |
+
+The boundary is clean: if the entry starts with an imperative verb
+(use, prefer, always, never), it's a memory directive. If it states
+a fact about the system, it's a knowledge note.
+
+** 6. External Literature Summary
+
+| Source                  | Key Criterion for Recording           | Applicability |
+|-------------------------+---------------------------------------+---------------|
+| Zettelkasten (Luhmann)  | Reusable by a future reader           | High          |
+| Smart Notes (Ahrens)    | Can stand alone, in your own words    | Medium        |
+| Evergreen (Matuschak)   | Concept-oriented, accumulates value   | Medium        |
+| PARA (Forte)            | Capture everything, filter later      | Low (wrong)   |
+| LLM Wiki (Karpathy)    | Negative value test: stale = harmful  | High          |
+| Mem0                    | Application-specific custom rules     | Medium        |
+| Cognitive offloading    | Retrieval cost > recording cost       | High          |
+| Transactive memory      | Specialize: store where retrieved     | High          |
+
+Synthesis: The most applicable frameworks for our use case are
+Zettelkasten's "reusability" lens, Karpathy's "negative value" test,
+and cognitive science's "retrieval cost" model. Forte's progressive
+summarization is actively harmful for a shared knowledge base (it
+optimizes for personal notebooks with revisitation, not for a DB
+queried by an amnesic agent).
+
+** 7. Proposed Decision Flowchart
+
+For any fact Claude discovers during code investigation:
+
+#+begin_example
+1. Is this fact already documented?
+   (CLAUDE.md, design docs, inline code comments, README)
+   → YES: Do not record. Link to existing documentation if needed.
+   → NO: Continue.
+
+2. Is this fact directly readable from a single source file?
+   (A config value, a function signature, a constant)
+   → YES: Do not record. It's grep-able.
+   → NO: Continue.
+
+3. Is this fact likely to change within the current work scope?
+   → YES: Do not record. It will be stale before it's useful.
+   → NO: Continue.
+
+4. Would rediscovering this fact require significant investigation?
+   (Reading >3 files, tracing cross-module interactions,
+   understanding implicit conventions across the codebase)
+   → YES: RECORD as a :fact: note.
+   → NO: Continue.
+
+5. Is this fact non-obvious or counter-intuitive?
+   (A competent developer familiar with the stack would NOT guess it)
+   → YES: RECORD as a :fact: note.
+   → NO: Do not record. It's a routine observation.
+#+end_example
