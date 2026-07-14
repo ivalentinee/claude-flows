@@ -2,7 +2,7 @@
 #+TOC: headlines 3
 #+title:      Fact Recording Criteria: Research Findings
 #+date:       [2026-07-14 Mon]
-#+filetags:   :research:knowledge:criteria:
+#+filetags:   :working:research:knowledge:criteria:
 #+identifier: 20260714T220000
 
 * Fact Recording Criteria: Research Findings

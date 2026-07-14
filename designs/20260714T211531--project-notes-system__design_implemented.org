@@ -1,0 +1,307 @@
+#+STARTUP: overview
+#+title:      Project Notes System
+#+date:       [2026-07-14 Mon 21:15]
+#+filetags:   :design:implemented:denote:knowledge:notes:
+#+identifier: 20260714T211531
+#+signature:
+#+deferred:
+* Project Notes System
+
+** Goal
+Implement the =notes/= directory system for project knowledge — a
+denote-based collection of atomic fact files that Claude can
+proactively create during code investigation and query during design
+work. This is the "code project KB" from the knowledge DB research:
+lightweight, Claude-primary authorship, ~50-100 facts per project.
+
+The system must:
+1. Integrate with existing =denote-query= and =DENOTE.md=
+2. Apply the three-gate fact recording framework (novelty → stability
+   → retrieval cost) for proactive recording
+3. Support =notes: read-only= opt-out in project CLAUDE.md
+4. Enable convergence gate to scan =notes/= alongside =designs/=
+5. Support lint at flow init across both directories
+
+** Constraints
+- No changes to existing =designs/= behavior — notes layers alongside
+- =denote-query= extensions only (=--dirs= flag, =field= subcommand
+  for arbitrary =#+key:= extraction); no new tooling
+- Notes are chaotic — no templates, no prescribed section structure
+  beyond denote front matter
+- Proactive fact recording must be conservative (~5-15 facts per major
+  investigation, not hundreds)
+- =notes/= lives in the project root (=<project>/notes/=), not in
+  =~/.claude/flows/=
+- Facts are plain denote-named org files with =:fact:= type tag
+- The system must work on projects that have no =designs/= directory
+  (notes-only projects are valid)
+
+** Preserved Invariants
+- =denote-query= existing subcommands and output format unchanged
+- =DENOTE.md= opt-out mechanism (=denote: disabled=) unchanged
+- Flow command interface unchanged
+- Claude Code memory system boundary unchanged (imperatives → memory,
+  facts → notes)
+
+** References
+- =20260714T154755--project-knowledge-db__research_researched.org= —
+  full research including fact recording criteria, directory decisions,
+  and all open questions resolved
+- =~/.claude/flows/DENOTE.md= — current denote specification
+- =~/.claude/flows/denote-query= — current query script
+- =designs/fact-recording-criteria-findings.org= — detailed findings
+  on recording heuristics
+
+** Acceptance Criteria
+1. =DENOTE.md= updated with notes/ activation rules, =notes: read-only=
+   convention, three-gate framework reference, and =:fact:= type
+2. =denote-query= supports =--dirs= flag (comma-separated paths)
+3. =denote-query= AWK scanner extracts arbitrary =#+key:= fields
+   (not just the hardcoded set)
+4. =denote-query field <key> <value>= subcommand works
+5. Convergence gate scans both =designs/= and =notes/= when both exist
+6. Lint runs across both directories at flow init
+7. Fact note creation works: Claude creates a properly denote-named
+   =.org= file in =notes/= with front matter and =:fact:= tag
+8. =notes: read-only= in CLAUDE.md prevents Claude from creating notes
+9. Projects without =notes/= directory trigger no notes-related behavior
+10. Example fact notes demonstrate the format
+
+** Design
+
+*** Overview
+
+Two deliverables:
+1. =DENOTE.md= additions — notes activation, fact recording criteria,
+   =:fact:= type, convergence/lint multi-directory behavior
+2. =denote-query= extensions — =--dirs= flag, arbitrary field
+   extraction, =field= subcommand
+
+No new files beyond DENOTE.md and denote-query. No new flow files.
+
+*** 1. DENOTE.md Additions
+
+**** 1.1 Notes Directory Section
+
+New section in DENOTE.md (after "Activation", before "Front Matter
+Schema"):
+
+#+begin_example
+## Project Notes
+
+The `notes/` directory holds project knowledge — atomic facts,
+discoveries, and domain knowledge that don't fit design artifacts.
+
+### Activation
+
+- `notes/` exists, CLAUDE.md silent → Claude may proactively record
+  facts using the three-gate framework (default)
+- `notes/` exists, CLAUDE.md contains `notes: read-only` → Claude
+  reads and queries but does NOT create notes unless asked
+- `notes/` does not exist → no fact recording, no knowledge queries
+
+### Fact Recording: Three-Gate Framework
+
+Claude applies these gates before recording a fact:
+
+**Gate 1 — Novelty (~80% elimination):** Don't record if already
+documented, grep-able from one file, in git history, standard
+technology knowledge, or a behavioral directive (→ memory instead).
+
+**Gate 2 — Stability (~10% elimination):** Don't record if it will
+change with the current commit, is a temporary workaround, or
+describes actively-refactored code. Exception: volatile facts that
+are extremely expensive to rediscover get a `:volatile:` tag.
+
+**Gate 3 — Retrieval Cost (positive test):** Record if rediscovery
+requires reading 3+ files, tracing cross-module interactions,
+running benchmarks, or trial-and-error with external systems. Also
+record if counter-intuitive (a competent developer wouldn't guess).
+
+### Fact Note Format
+
+```org
+#+title:      <Fact description>
+#+date:       [YYYY-MM-DD Day HH:MM]
+#+filetags:   :fact:<domain-keywords>:
+#+identifier: <YYYYMMDDTHHmmss>
+```
+
+Body: 1-3 paragraphs stating the fact, its context, and how it was
+discovered. Cross-reference design docs via `[[file:]]` links.
+No prescribed structure beyond front matter.
+
+### Memory vs Knowledge Boundary
+
+Imperatives ("use X", "prefer Y") → Claude Code memory.
+Facts about the system ("pool cap is 40") → `notes/`.
+#+end_example
+
+**** 1.2 Type Vocabulary Update
+
+Add =:fact:= to the type vocabulary table:
+
+| =fact= | Atomic project knowledge entry |
+
+**** 1.3 Convergence Gate Update
+
+The convergence gate procedure (existing section in DENOTE.md) gains
+a note about multi-directory scanning:
+
+#+begin_example
+When `notes/` exists alongside `designs/`, the convergence gate
+scans both directories. Use `denote-query --dirs designs/,notes/`
+for steps 1-4. This surfaces relevant facts alongside related
+design artifacts.
+#+end_example
+
+**** 1.4 Lint Update
+
+Lint behavior addition:
+
+#+begin_example
+When `notes/` exists, lint runs across both `designs/` and `notes/`
+at flow init. Fact notes (tagged `:fact:`) are exempt from heading
+standards (they use free-form content, like working files).
+#+end_example
+
+*** 2. denote-query Extensions
+
+**** 2.1 =--dirs= Flag
+
+New global option:
+
+| =--dirs <paths>= | Comma-separated directories | Scan multiple dirs |
+
+Implementation: split on comma, run =find= across all directories,
+merge results. Mutually exclusive with =--dir= — if both are passed,
+emit an error: "Cannot use --dir and --dirs together."
+
+#+begin_src bash
+# In find_files():
+if [[ -n "$DIRS_FILTER" ]]; then
+    IFS=',' read -ra dir_array <<< "$DIRS_FILTER"
+    for d in "${dir_array[@]}"; do
+        if $ROOT_ONLY; then
+            find "$d" -maxdepth 1 -name '*.org' -type f
+        else
+            find "$d" -name '*.org' -type f
+        fi
+    done | sort
+fi
+#+end_src
+
+**** 2.2 =field= Subcommand (Direct File Scan)
+
+New subcommand for querying arbitrary front matter fields:
+
+#+begin_example
+denote-query field <key> <value>
+#+end_example
+
+Unlike other subcommands, =field= does NOT use =build_index=. It
+scans files directly for =#+key:= lines, avoiding the escaping
+problems that would arise from packing arbitrary values into a TSV
+column. The core index stays clean (7 fixed columns, no EXTRA).
+
+#+begin_src bash
+field)
+    [[ ${#SUBCMD_ARGS[@]} -lt 2 ]] && \
+        { echo "Usage: denote-query field <key> <value>" >&2; exit 1; }
+    fkey="${SUBCMD_ARGS[0]}"
+    fval="${SUBCMD_ARGS[1]}"
+    files=$(find_files)
+    [[ -z "$files" ]] && exit 0
+    echo "$files" | xargs awk \
+        -v key="$fkey" -v val="$fval" '
+    FNR == 1 { matched = 0; in_front = 1 }
+    in_front && /^\*/ { in_front = 0 }
+    in_front {
+        low = tolower($0)
+        pat = "^#\\+" tolower(key) ":"
+        if (low ~ pat) {
+            s = $0; sub(/^#\+[^:]+:[ \t]*/, "", s)
+            if (index(s, val) > 0) matched = 1
+        }
+    }
+    !in_front && matched && !printed {
+        print FILENAME; printed = 1
+    }
+    FNR == 1 { printed = 0 }
+    END { if (matched && !printed) print FILENAME }
+    '
+    ;;
+#+end_src
+
+This performs one =find= + =awk= pass across all files (~20ms at 200
+files). No escaping issues, no index schema changes.
+
+**** 2.4 Lint Skip for Fact Notes
+
+Update lint to also skip =:fact:= tagged files (same logic as
+=:working:= files — they use free-form content):
+
+#+begin_src bash
+# In lint, extend the skip check:
+if ! head -20 "$f" 2>/dev/null | grep -qiE '#+filetags:.*(:(working|fact):)'; then
+    echo "$f"
+fi
+#+end_src
+
+*** 3. Integration Points
+
+**** 3.1 Flow Init Behavior
+
+At every flow init (when denote is active):
+
+1. Check if =notes/= exists in the project
+2. If yes: add =notes/= to the convergence gate's =--dirs= scan
+3. Run lint across both =designs/= and =notes/=
+4. If CLAUDE.md contains =notes: read-only= as a bare line (not
+   indented, not inside a code block), suppress proactive fact
+   creation for this session. Detection is behavioral (Claude reads
+   CLAUDE.md content), same as =denote: disabled=.
+
+**** 3.2 Fact Creation Behavior
+
+When Claude discovers a fact during code investigation (and notes
+are not read-only):
+
+1. Apply the three-gate framework
+2. If the fact passes all gates:
+   - Generate identifier: =date '+%Y%m%dT%H%M%S'=
+   - Derive title slug from the fact description
+   - Create file: =notes/ID--slug__fact_domain-keywords.org=
+   - Write front matter + 1-3 paragraph body
+   - Emit brief notice: "Recorded fact: <title>"
+3. Do NOT ask for confirmation (proactive, like memory)
+4. Do NOT interrupt the current task to record facts — record after
+   completing a subagent step or before presenting results to the user
+
+**** 3.3 When NOT to Record (Anti-Patterns)
+
+Claude must NOT create fact notes for:
+- Code mirrors (values readable from a single config/source file)
+- Git-discoverable history (commit dates, authors, refactor history)
+- Documentation echoes (facts already in CLAUDE.md or design docs)
+- Debugging ephemera (session-specific observations)
+- In-flight changes (code being actively modified)
+- Common technology knowledge (documented in official docs)
+- Behavioral directives (those go in Claude Code memory)
+
+** Sub-features
+
+** Known Deferred Work
+
+- *=denote-query table= subcommand* — Dataview TABLE equivalent for
+  structured queries across notes. Needed primarily for creative
+  projects but useful for code projects too. Deferred to the creative
+  KB design.
+- *=denote-query orphans= subcommand* — detect notes with no incoming
+  or outgoing links. Useful for knowledge hygiene. Deferred until
+  the corpus grows enough to need it.
+- *Stale fact detection* — lint operation that flags facts whose
+  related code has changed since the fact was recorded. Requires
+  tracking source file references in facts. Deferred.
+- *=denote-query content= subcommand* — return full note content for
+  a filtered set of files (for compilation). Deferred to creative KB.

@@ -5,6 +5,7 @@ set -euo pipefail
 
 # --- Defaults ---
 DIR="designs/"
+DIRS=""
 FORMAT="tsv"
 ROOT_ONLY=false
 MAX_LINES=""
@@ -37,8 +38,11 @@ Section extraction subcommands:
   deferred-items [--structured] Extract Known Deferred Work
   summary                   Title + first line of Goal (compact)
 
+  field <key> <val>       Find files with #+key: matching val
+
 Options:
   --dir <path>       Root directory to scan (default: designs/)
+  --dirs <a,b>       Scan multiple directories (comma-separated)
   --format <fmt>     Output: tsv (default), table, paths
   --root-only        Disable recursive traversal
   --max-lines <n>    Truncate section output per file
@@ -61,6 +65,7 @@ while [[ $# -gt 0 ]]; do
     fi
     case "$1" in
         --dir)       DIR="$2"; shift 2 ;;
+        --dirs)      DIRS="$2"; shift 2 ;;
         --format)    FORMAT="$2"; shift 2 ;;
         --root-only) ROOT_ONLY=true; shift ;;
         --max-lines) MAX_LINES="$2"; shift 2 ;;
@@ -73,6 +78,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -z "$SUBCMD" ]] && { echo "Error: no subcommand specified" >&2; usage; }
+[[ -n "$DIRS" && "$DIR" != "designs/" ]] && { echo "Error: cannot use --dir and --dirs together" >&2; exit 1; }
 
 # --- File discovery ---
 find_files() {
@@ -82,6 +88,15 @@ find_files() {
         else
             echo "$FILES_FILTER"
         fi
+    elif [[ -n "$DIRS" ]]; then
+        IFS=',' read -ra dir_array <<< "$DIRS"
+        for d in "${dir_array[@]}"; do
+            if $ROOT_ONLY; then
+                find "$d" -maxdepth 1 -name '*.org' -type f 2>/dev/null
+            else
+                find "$d" -name '*.org' -type f 2>/dev/null
+            fi
+        done | sort
     elif $ROOT_ONLY; then
         find "$DIR" -maxdepth 1 -name '*.org' -type f 2>/dev/null | sort
     else
@@ -91,7 +106,7 @@ find_files() {
 
 # --- Core AWK index builder ---
 # Scans each file until the first * heading, extracts front matter fields.
-# Outputs TSV: FILE\tTITLE\tFILETAGS\tIDENTIFIER\tSIGNATURE\tDEFERRED
+# Outputs TSV: FILE\tTITLE\tDATE\tFILETAGS\tIDENTIFIER\tSIGNATURE\tDEFERRED
 build_index() {
     local files
     files=$(find_files)
@@ -309,7 +324,7 @@ case "$SUBCMD" in
         ;;
     validate)
         local_statuses="researched designed implemented postponed dismissed superseded"
-        local_types="research design sub-feature review supporting working"
+        local_types="research design sub-feature review supporting working fact"
         build_index | awk -F'\t' -v statuses="$local_statuses" -v types="$local_types" '
         BEGIN {
             split(statuses, sl, " "); for (i in sl) valid_status[sl[i]] = 1
@@ -341,7 +356,7 @@ case "$SUBCMD" in
         files=$(find_files)
         [[ -z "$files" ]] && exit 0
         non_working=$(echo "$files" | while read -r f; do
-            if ! head -20 "$f" 2>/dev/null | grep -qi '#+filetags:.*:working:'; then
+            if ! head -20 "$f" 2>/dev/null | grep -qiE '#+filetags:.*(:(working|fact):)'; then
                 echo "$f"
             fi
         done)
@@ -444,8 +459,32 @@ case "$SUBCMD" in
         done
         extract_section "Known Deferred Work" "" "$structured"
         ;;
+    field)
+        [[ ${#SUBCMD_ARGS[@]} -lt 2 ]] && { echo "Usage: denote-query field <key> <value>" >&2; exit 1; }
+        fkey="${SUBCMD_ARGS[0]}"
+        fval="${SUBCMD_ARGS[1]}"
+        files=$(find_files)
+        [[ -z "$files" ]] && exit 0
+        echo "$files" | xargs awk -v key="$fkey" -v val="$fval" '
+        FNR == 1 {
+            if (NR > 1 && prev_matched) print prev_file
+            prev_matched = 0; in_front = 1
+            prev_file = FILENAME
+        }
+        in_front && /^\*/ { in_front = 0 }
+        in_front {
+            low = tolower($0)
+            pat = "^#\\+" tolower(key) ":"
+            if (low ~ pat) {
+                s = $0; sub(/^#\+[^:]+:[ \t]*/, "", s)
+                if (index(s, val) > 0) prev_matched = 1
+            }
+        }
+        END { if (prev_matched) print prev_file }
+        '
+        ;;
     summary)
-        build_index | while IFS=$'\t' read -r file title filetags identifier signature deferred; do
+        build_index | while IFS=$'\t' read -r file title date filetags identifier signature deferred; do
             goal_line=$(awk '
             tolower($0) ~ /^#\+begin_example/ { in_ex = 1; next }
             tolower($0) ~ /^#\+end_example/   { in_ex = 0; next }

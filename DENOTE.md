@@ -24,6 +24,80 @@ exactly as before denote was introduced.
 
 ---
 
+## Project Notes
+
+The `notes/` directory holds project knowledge — atomic facts,
+discoveries, and domain knowledge that don't fit design artifacts.
+
+### Notes activation
+
+- `notes/` exists, CLAUDE.md silent → Claude may proactively record
+  facts using the three-gate framework (default)
+- `notes/` exists, CLAUDE.md contains `notes: read-only` (as a bare
+  line) → Claude reads and queries but does NOT create notes unless
+  explicitly asked
+- `notes/` does not exist → no fact recording, no knowledge queries
+
+### Fact recording: three-gate framework
+
+Claude applies these gates before recording a fact:
+
+**Gate 1 — Novelty (~80% elimination):** Don't record if already
+documented, grep-able from one file, in git history, standard
+technology knowledge, or a behavioral directive (→ memory instead).
+
+**Gate 2 — Stability (~10% elimination):** Don't record if it will
+change with the current commit, is a temporary workaround, or
+describes actively-refactored code. Exception: volatile facts that
+are extremely expensive to rediscover get a `:volatile:` tag.
+
+**Gate 3 — Retrieval Cost (positive test):** Record if rediscovery
+requires reading 3+ files, tracing cross-module interactions,
+running benchmarks, or trial-and-error with external systems. Also
+record if counter-intuitive (a competent developer wouldn't guess).
+
+### What NOT to record
+
+- Code mirrors (values readable from a single source file)
+- Git-discoverable history
+- Documentation echoes (facts already in CLAUDE.md or design docs)
+- Debugging ephemera (session-specific observations)
+- In-flight changes (code being actively modified)
+- Common technology knowledge
+- Behavioral directives (those go in Claude Code memory)
+
+### Fact note format
+
+```org
+#+title:      <Fact description>
+#+date:       [YYYY-MM-DD Day HH:MM]
+#+filetags:   :fact:<domain-keywords>:
+#+identifier: <YYYYMMDDTHHmmss>
+```
+
+Body: 1-3 paragraphs stating the fact, its context, and how it was
+discovered. Cross-reference design docs via `[[file:]]` links.
+No prescribed structure beyond front matter.
+
+### Memory vs knowledge boundary
+
+Imperatives ("use X", "prefer Y") → Claude Code memory.
+Facts about the system ("pool cap is 40") → `notes/`.
+
+### Convergence gate with notes
+
+When `notes/` exists alongside `designs/`, the convergence gate
+scans both directories using `denote-query --dirs designs/,notes/`.
+This surfaces relevant facts alongside related design artifacts.
+
+### Lint with notes
+
+When `notes/` exists, lint runs across both `designs/` and `notes/`
+at flow init. Fact notes (tagged `:fact:`) are exempt from heading
+standards (they use free-form content).
+
+---
+
 ## Front Matter Schema
 
 Every artifact created by a flow gets denote-standard front matter
@@ -76,6 +150,7 @@ are flow-specific extensions.
 | `review`       | Review/audit artifact               |
 | `supporting`   | Repro cases, test plans             |
 | `working`      | Ephemeral file in `-design/` dir    |
+| `fact`         | Atomic project knowledge entry      |
 
 ### Status vocabulary (terminal states only)
 
@@ -394,16 +469,19 @@ default; use `--root-only` to limit to top-level directory.
 | Option            | Default    | Purpose                          |
 |-------------------|------------|----------------------------------|
 | `--dir <path>`    | `designs/` | Root directory to scan           |
+| `--dirs <a,b>`    |            | Scan multiple dirs (comma-sep)   |
 | `--format <fmt>`  | `tsv`      | Output: tsv, table, paths        |
 | `--root-only`     | off        | Disable recursive traversal      |
 | `--max-lines <n>` | unlimited  | Truncate section output per file |
 | `--files <list>`  | all        | Newline-separated paths (or `-` for stdin) |
 | `--no-header`     | off        | Suppress TSV header row          |
 
+`--dir` and `--dirs` are mutually exclusive.
+
 ### TSV output format
 
 Header row (always emitted unless `--no-header`):
-`FILE\tTITLE\tFILETAGS\tIDENTIFIER\tSIGNATURE\tDEFERRED`
+`FILE\tTITLE\tDATE\tFILETAGS\tIDENTIFIER\tSIGNATURE\tDEFERRED`
 
 ### Subcommands
 
@@ -411,6 +489,8 @@ See `denote-query --help` for the full list. Key subcommands:
 
 **Metadata:** `index`, `status`, `signature`, `tag`, `deferred`,
 `overlap`, `backlinks`, `tags`, `statuses`, `signatures`
+
+**Domain queries:** `field` (arbitrary `#+key:` field search)
 
 **Validation:** `validate`, `lint`, `fix-names`
 
