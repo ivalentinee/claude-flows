@@ -307,6 +307,27 @@ chaotic by nature. The denote front matter (=#+title:=, =#+filetags:=,
 =#+identifier:=) provides the minimal structure; domain-specific fields
 (=#+faction:=, =#+location:=) are added organically per project.
 
+*** Notes activation and read-only mode
+Fact recording follows the same opt-out pattern as denote itself:
+
+- If =notes/= exists in the project and CLAUDE.md says nothing →
+  Claude may proactively record facts (applying the three-gate
+  framework). This is the default.
+- If CLAUDE.md contains =notes: read-only= → Claude reads and queries
+  =notes/= but does NOT create or modify notes unless explicitly asked.
+- If =notes/= does not exist → no fact recording, no knowledge queries.
+
+This matters because:
+- Code projects benefit from proactive fact recording (Claude discovers
+  architecture facts during investigation)
+- Creative projects (TTRPG) should use =notes: read-only= — the user
+  writes all lore, Claude only reads, queries, and compiles
+- The CLAUDE.md declaration is one line, not a mode switch
+
+The three-gate framework (DENOTE.md) governs /what/ gets recorded;
+the CLAUDE.md =notes: read-only= flag governs /whether/ recording
+happens at all.
+
 ** Addendum: Fact Recording Criteria
 
 This section defines when Claude should record a discovery as a
