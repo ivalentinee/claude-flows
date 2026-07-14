@@ -1,5 +1,6 @@
 #+STARTUP: overview
 #+title:      Denote-Based Design Artifact Linking
+#+date:       [2026-07-14 Mon 15:27]
 #+filetags:   :design:designed:denote:metadata:flows:
 #+identifier: 20260714T152747
 #+signature:

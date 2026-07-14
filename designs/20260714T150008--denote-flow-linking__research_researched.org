@@ -1,6 +1,7 @@
 #+STARTUP: overview
 #+TOC: headlines 2
 #+title:      Research: Denote-Based Design Artifact Linking Across Flows
+#+date:       [2026-07-14 Mon 15:00]
 #+filetags:   :research:researched:denote:metadata:flows:
 #+identifier: 20260714T150008
 #+signature:

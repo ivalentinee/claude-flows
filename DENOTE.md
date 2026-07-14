@@ -26,34 +26,42 @@ exactly as before denote was introduced.
 
 ## Front Matter Schema
 
-Every artifact created by a flow gets this front matter block inserted
-after all `#+` configuration lines (`#+STARTUP:`, `#+TOC:`) and before
-the first `*` heading:
+Every artifact created by a flow gets denote-standard front matter
+inserted after all `#+` configuration lines (`#+STARTUP:`, `#+TOC:`)
+and before the first `*` heading:
 
 ```org
 #+title:      <Human-readable title>
+#+date:       [YYYY-MM-DD Day HH:MM]
 #+filetags:   :<type>:<status>:<domain-keywords>:
-#+identifier: <YYYYMMDDThhmmss from current time>
+#+identifier: <YYYYMMDDThhmmss>
 #+signature:  <issue-ID or empty>
 #+deferred:   <org-style tags of deferred item slugs, or empty>
 ```
 
+The first four fields (`#+title:`, `#+date:`, `#+filetags:`,
+`#+identifier:`) follow the standard denote format exactly as
+`denote.el` produces them. The last two (`#+signature:`, `#+deferred:`)
+are flow-specific extensions.
+
 ### Field rules
 
-- `#+title:` reproduces the first heading text (e.g., `[15987] Operation Pool`)
-- `#+identifier:` is generated once at creation and never changes.
-  Format: `YYYYMMDDTHHmmss` (e.g., `20240713T113400`)
-- `#+signature:` is inferred from the title's `[ID]` prefix if present,
-  or left empty for exploratory work
-- `#+filetags:` always contains exactly one type tag and one status tag
-  (or no status tag during active work). Domain keywords are added by
-  Claude based on Goal section content. Inferred, open tag system — no
-  predefined vocabulary for domain keywords.
-- `#+deferred:` is an empty string at creation. Populated at finalize
+- `#+title:` is the human-readable title, matching the first heading
+  text (e.g., `Operation Pool`)
+- `#+date:` is the creation timestamp in org date format
+  (e.g., `[2026-07-14 Mon 15:30]`). Set once at creation, never
+  updated. Matches denote standard.
+- `#+identifier:` is the denote identifier, generated once at creation.
+  Format: `YYYYMMDDTHHmmss` (e.g., `20260714T153000`). This is the
+  same value encoded in the filename prefix.
+- `#+filetags:` contains type, status (if finalized), and domain
+  keywords as colon-delimited org tags. Inferred, open tag system.
+- `#+signature:` (extension) is inferred from the title's `[ID]`
+  prefix if present, or left empty for exploratory work.
+- `#+deferred:` (extension) is empty at creation. Populated at finalize
   from Known Deferred Work section. Uses org-style tags
   (`:memory-recycling:pool-shrinking:`). Slugification: lowercase,
-  hyphens for spaces, strip parenthetical notes and punctuation. Only
-  the primary item name is slugified.
+  hyphens for spaces, strip parenthetical notes and punctuation.
 - `#+deferred:` is a **cache** of Known Deferred Work at finalize time.
   `denote-query deferred-items` reads the section directly and is always
   fresh.
@@ -93,8 +101,9 @@ also receive denote front matter:
 
 ```org
 #+title:      <Descriptive title>
+#+date:       [YYYY-MM-DD Day HH:MM]
 #+filetags:   :working:<role>:
-#+identifier: <YYYYMMDDThhmmss from creation time>
+#+identifier: <YYYYMMDDThhmmss>
 ```
 
 Rules:
@@ -121,20 +130,42 @@ AWK post-processing when querying only root artifacts.
 
 ## Naming Convention
 
-At creation, artifacts are named: `<slug>.org` (no suffix metadata).
+Files follow the standard denote naming scheme:
 
-At finalize, artifacts are renamed to: `<slug>__<status>_<type>.org`
+```
+IDENTIFIER--TITLE__KEYWORDS.org
+```
 
-Examples:
-- `operation-pool__implemented_design.org`
-- `operation-pool-reuse__researched_research.org`
-- `resource-scaling/ams-image-final-scaling__implemented_sub-feature.org`
+Where:
+- `IDENTIFIER` is `YYYYMMDDTHHmmss` (e.g., `20260714T153000`)
+- `--` separates identifier from title
+- `TITLE` is kebab-case (e.g., `operation-pool`)
+- `__` separates title from keywords
+- `KEYWORDS` are underscore-separated tags (e.g., `design_implemented_pool`)
 
-**Slugs must NOT contain double underscores (`__`).** Use a single
-hyphen instead.
+At creation, the file gets a full denote name immediately:
 
-During active work (working directory exists), the file keeps its
-plain `<slug>.org` name. The suffix is added only at finalize.
+```
+20260714T153000--operation-pool__design.org
+```
+
+At finalize, the status keyword is added:
+
+```
+20260714T153000--operation-pool__design_implemented.org
+```
+
+More examples:
+- `20260714T150008--denote-flow-linking__research_researched.org`
+- `20260714T160000--code-as-documentation__design.org` (unstarted, no status keyword)
+- `20260714T153000--ams-image-final-scaling__sub-feature_implemented.org`
+
+This matches the format that Emacs `denote.el` produces. Files created
+by denote.el and files created by Claude are interchangeable — denote
+commands (rename, link, backlinks) work on both.
+
+**Title slugs must NOT contain double underscores (`__`) or double
+hyphens (`--`).** These are denote's component separators.
 
 ### Rename + reference update procedure
 
@@ -155,13 +186,14 @@ front matter and fixes stale cross-references.
 
 | Flow boundary      | Action                                               |
 |--------------------|------------------------------------------------------|
-| `init`             | Create file with `#+filetags: :<type>::`             |
-|                    | (no status tag — working dir signals active)         |
+| `init`             | Create file as `ID--title__type.org` with             |
+|                    | `#+filetags: :<type>:` (no status keyword yet)       |
 | `finalize` (design)| Working dir deletion first (existing flow behavior), |
-|                    | then: rename file with `__designed_<type>` suffix,   |
+|                    | then: rename to add status keyword                   |
+|                    | (`__type.org` → `__type_designed.org`),              |
 |                    | update `#+filetags:` to include `:designed:`,        |
 |                    | populate `#+deferred:` from Known Deferred Work      |
-| `finalize` (impl)  | Change `__designed_` to `__implemented_`,            |
+| `finalize` (impl)  | Rename: `_designed` → `_implemented` in keywords,    |
 |                    | update `#+filetags:`: `:designed:` → `:implemented:` |
 | `full`             | No direct action — triggers init, then design        |
 |                    | finalize, then impl finalize                         |

@@ -1,5 +1,6 @@
 #+STARTUP: overview
 #+title:      Code as Documentation: Self-Documenting Code Reviewer
+#+date:       [2026-07-14 Mon 16:00]
 #+filetags:   :design:code-quality:documentation:review:
 #+identifier: 20260714T160000
 #+signature:
