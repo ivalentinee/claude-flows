@@ -1,0 +1,456 @@
+#!/usr/bin/env bash
+# denote-query — Query denote-style org-mode design artifacts
+# Part of the Claude Code flow system. Git-tracked at ~/.claude/flows/
+set -euo pipefail
+
+# --- Defaults ---
+DIR="designs/"
+FORMAT="tsv"
+ROOT_ONLY=false
+MAX_LINES=""
+NO_HEADER=false
+FILES_FILTER=""
+
+# --- Usage ---
+usage() {
+    cat <<'EOF'
+Usage: denote-query [OPTIONS] SUBCOMMAND [ARGS...]
+
+Metadata subcommands:
+  index                     Full metadata dump
+  status <status>           Filter by terminal status
+  signature <id>            Filter by issue/feature ID
+  tag <tag>                 Filter by any filetag
+  deferred                  All postponed + dismissed artifacts
+  overlap <words>           Keyword overlap scoring (threshold >= 2)
+  backlinks <file>          Files linking to a given file
+  tags                      Unique tags with counts
+  statuses                  Count per terminal status
+  signatures                Unique signatures with file counts
+  validate                  Check front matter validity
+  lint                      Report non-standard headings
+  fix-names                 Re-derive filename suffixes from front matter
+
+Section extraction subcommands:
+  goals [--filter TAG]      Extract Goal/Question sections
+  constraints [--filter TAG] Extract Constraints sections
+  deferred-items [--structured] Extract Known Deferred Work
+  summary                   Title + first line of Goal (compact)
+
+Options:
+  --dir <path>       Root directory to scan (default: designs/)
+  --format <fmt>     Output: tsv (default), table, paths
+  --root-only        Disable recursive traversal
+  --max-lines <n>    Truncate section output per file
+  --files <list>     Process only listed files (newline-separated, or - for stdin)
+  --no-header        Suppress TSV header row
+  -h, --help         Show this help
+EOF
+    exit 0
+}
+
+# --- Option parsing ---
+SUBCMD=""
+SUBCMD_ARGS=()
+while [[ $# -gt 0 ]]; do
+    if [[ -n "$SUBCMD" ]]; then
+        # After subcommand, everything is a subcommand arg
+        SUBCMD_ARGS+=("$1")
+        shift
+        continue
+    fi
+    case "$1" in
+        --dir)       DIR="$2"; shift 2 ;;
+        --format)    FORMAT="$2"; shift 2 ;;
+        --root-only) ROOT_ONLY=true; shift ;;
+        --max-lines) MAX_LINES="$2"; shift 2 ;;
+        --files)     FILES_FILTER="$2"; shift 2 ;;
+        --no-header) NO_HEADER=true; shift ;;
+        -h|--help)   usage ;;
+        -*)          echo "Unknown option: $1" >&2; exit 1 ;;
+        *)           SUBCMD="$1"; shift ;;
+    esac
+done
+
+[[ -z "$SUBCMD" ]] && { echo "Error: no subcommand specified" >&2; usage; }
+
+# --- File discovery ---
+find_files() {
+    if [[ -n "$FILES_FILTER" ]]; then
+        if [[ "$FILES_FILTER" == "-" ]]; then
+            cat
+        else
+            echo "$FILES_FILTER"
+        fi
+    elif $ROOT_ONLY; then
+        find "$DIR" -maxdepth 1 -name '*.org' -type f 2>/dev/null | sort
+    else
+        find "$DIR" -name '*.org' -type f 2>/dev/null | sort
+    fi
+}
+
+# --- Core AWK index builder ---
+# Scans each file until the first * heading, extracts front matter fields.
+# Outputs TSV: FILE\tTITLE\tFILETAGS\tIDENTIFIER\tSIGNATURE\tDEFERRED
+build_index() {
+    local files
+    files=$(find_files)
+    [[ -z "$files" ]] && return
+
+    echo "$files" | xargs awk '
+    FNR == 1 {
+        if (NR > 1) emit()
+        title = ""; filetags = ""; identifier = ""; signature = ""; deferred = ""
+        current_file = FILENAME
+        in_front = 1
+    }
+    in_front && /^\*/ { in_front = 0; next }
+    in_front {
+        s = $0
+        low = tolower(s)
+        if (low ~ /^#\+title:/) {
+            sub(/^#\+[Tt][Ii][Tt][Ll][Ee]:[ \t]*/, "", s)
+            title = s
+        } else if (low ~ /^#\+filetags:/) {
+            sub(/^#\+[Ff][Ii][Ll][Ee][Tt][Aa][Gg][Ss]:[ \t]*/, "", s)
+            filetags = s
+        } else if (low ~ /^#\+identifier:/) {
+            sub(/^#\+[Ii][Dd][Ee][Nn][Tt][Ii][Ff][Ii][Ee][Rr]:[ \t]*/, "", s)
+            identifier = s
+        } else if (low ~ /^#\+signature:/) {
+            sub(/^#\+[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]:[ \t]*/, "", s)
+            signature = s
+        } else if (low ~ /^#\+deferred:/) {
+            sub(/^#\+[Dd][Ee][Ff][Ee][Rr][Rr][Ee][Dd]:[ \t]*/, "", s)
+            deferred = s
+        }
+    }
+    function emit() {
+        if (identifier != "")
+            printf "%s\t%s\t%s\t%s\t%s\t%s\n", current_file, title, filetags, identifier, signature, deferred
+    }
+    END { emit() }
+    '
+}
+
+# --- Section extractor ---
+# Extracts content between a ** heading and the next ** heading (or EOF).
+# For goals, also handles *** Question under ** Appendix.
+extract_section() {
+    local heading="$1"
+    local filter_tag="${2:-}"
+    local structured="${3:-false}"
+    local files index_data
+
+    if [[ -n "$filter_tag" ]]; then
+        index_data=$(build_index)
+        files=$(echo "$index_data" | awk -F'\t' -v tag=":${filter_tag}:" '$3 ~ tag { print $1 }')
+    else
+        files=$(find_files)
+    fi
+    [[ -z "$files" ]] && return
+
+    echo "$files" | xargs awk -v heading="$heading" -v structured="$structured" -v max_lines="${MAX_LINES:-0}" '
+    FNR == 1 {
+        if (capturing) flush()
+        capturing = 0; buf = ""; line_count = 0; in_example = 0
+        current_file = FILENAME
+    }
+    tolower($0) ~ /^#\+begin_example/ { in_example = 1; if (capturing) { buf = buf $0 "\n"; line_count++ }; next }
+    tolower($0) ~ /^#\+end_example/   { in_example = 0; if (capturing) { buf = buf $0 "\n"; line_count++ }; next }
+    in_example { if (capturing) { buf = buf $0 "\n"; line_count++ }; next }
+    /^(\*\*|\*\*\*) / {
+        if (capturing) { flush(); capturing = 0 }
+        line = $0
+        sub(/^\*+[ \t]+/, "", line)
+        if (line == heading) capturing = 1
+        next
+    }
+    capturing {
+        if (max_lines > 0 && line_count >= max_lines) next
+        if (structured == "true") {
+            if ($0 ~ /^- \*[^*]+\*/) {
+                item = $0
+                sub(/^- \*/, "", item)
+                sub(/\*.*/, "", item)
+                buf = buf item "\n"
+                line_count++
+            }
+        } else {
+            buf = buf $0 "\n"
+            line_count++
+        }
+    }
+    function flush() {
+        if (buf != "") printf "--- %s ---\n%s", current_file, buf
+    }
+    END { if (capturing) flush() }
+    '
+}
+
+# --- Output formatting ---
+format_output() {
+    case "$FORMAT" in
+        tsv)
+            if ! $NO_HEADER; then
+                echo -e "FILE\tTITLE\tFILETAGS\tIDENTIFIER\tSIGNATURE\tDEFERRED"
+            fi
+            cat
+            ;;
+        paths)
+            awk -F'\t' '{ print $1 }'
+            ;;
+        table)
+            if ! $NO_HEADER; then
+                echo -e "FILE\tTITLE\tFILETAGS\tIDENTIFIER\tSIGNATURE\tDEFERRED"
+            fi
+            cat | column -t -s $'\t'
+            ;;
+    esac
+}
+
+# --- Overlap scoring ---
+overlap_score() {
+    local query="$1"
+    local index_data
+    index_data=$(build_index)
+    [[ -z "$index_data" ]] && return
+
+    # Compute dynamic stopwords (words in >50% of titles)
+    local total_files stopwords
+    total_files=$(echo "$index_data" | wc -l)
+    stopwords=$(echo "$index_data" | awk -F'\t' '{
+        n = split(tolower($1 " " $2 " " $3), words, /[^a-z0-9]+/)
+        for (i = 1; i <= n; i++) if (length(words[i]) > 2) seen[words[i]]++
+    } END {
+        for (w in seen) if (seen[w] > int(NR * 0.5)) print w
+    }')
+
+    echo "$index_data" | awk -F'\t' -v query="$query" -v stopwords="$stopwords" '
+    BEGIN {
+        n = split(tolower(query), qwords, /[^a-z0-9]+/)
+        split(stopwords, sw, "\n")
+        for (i in sw) is_stop[sw[i]] = 1
+    }
+    {
+        haystack = tolower($1 " " $2 " " $3)
+        gsub(/[^a-z0-9 ]/, " ", haystack)
+        score = 0
+        for (i = 1; i <= n; i++) {
+            if (length(qwords[i]) < 3) continue
+            if (is_stop[qwords[i]]) continue
+            if (index(haystack, qwords[i]) > 0) score++
+        }
+        if (score >= 2) printf "%d\t%s\n", score, $0
+    }
+    ' | sort -t$'\t' -k1 -rn | head -10 | cut -f2-
+}
+
+# --- Subcommand dispatch ---
+case "$SUBCMD" in
+    index)
+        build_index | format_output
+        ;;
+    status)
+        [[ ${#SUBCMD_ARGS[@]} -lt 1 ]] && { echo "Usage: denote-query status <status>" >&2; exit 1; }
+        s="${SUBCMD_ARGS[0]}"
+        build_index | awk -F'\t' -v s=":${s}:" '$3 ~ s' | format_output
+        ;;
+    signature)
+        [[ ${#SUBCMD_ARGS[@]} -lt 1 ]] && { echo "Usage: denote-query signature <id>" >&2; exit 1; }
+        sig="${SUBCMD_ARGS[0]}"
+        build_index | awk -F'\t' -v sig="$sig" '$5 == sig' | format_output
+        ;;
+    tag)
+        [[ ${#SUBCMD_ARGS[@]} -lt 1 ]] && { echo "Usage: denote-query tag <tag>" >&2; exit 1; }
+        t="${SUBCMD_ARGS[0]}"
+        build_index | awk -F'\t' -v t=":${t}:" '$3 ~ t' | format_output
+        ;;
+    deferred)
+        build_index | awk -F'\t' '$3 ~ /:postponed:/ || $3 ~ /:dismissed:/' | format_output
+        ;;
+    overlap)
+        [[ ${#SUBCMD_ARGS[@]} -lt 1 ]] && { echo "Usage: denote-query overlap <words>" >&2; exit 1; }
+        overlap_score "${SUBCMD_ARGS[*]}" | format_output
+        ;;
+    backlinks)
+        [[ ${#SUBCMD_ARGS[@]} -lt 1 ]] && { echo "Usage: denote-query backlinks <file>" >&2; exit 1; }
+        target="${SUBCMD_ARGS[0]}"
+        files=$(find_files)
+        [[ -z "$files" ]] && exit 0
+        echo "$files" | xargs grep -l "$target" 2>/dev/null | grep -v "^${target}$" || true
+        ;;
+    tags)
+        build_index | awk -F'\t' '{
+            gsub(/^:|:$/, "", $3)
+            n = split($3, tags, ":")
+            for (i = 1; i <= n; i++) if (tags[i] != "") count[tags[i]]++
+        } END {
+            for (t in count) printf "%d\t%s\n", count[t], t
+        }' | sort -rn
+        ;;
+    statuses)
+        local_statuses="researched designed implemented postponed dismissed superseded"
+        build_index | awk -F'\t' -v statuses="$local_statuses" '
+        BEGIN { split(statuses, sl, " "); for (i in sl) counts[sl[i]] = 0 }
+        {
+            for (s in counts) if (index($3, ":" s ":") > 0) counts[s]++
+        }
+        END { for (s in counts) printf "%d\t%s\n", counts[s], s }
+        ' | sort -rn
+        ;;
+    signatures)
+        build_index | awk -F'\t' '$5 != "" { count[$5]++ } END {
+            for (s in count) printf "%d\t%s\n", count[s], s
+        }' | sort -rn
+        ;;
+    validate)
+        local_statuses="researched designed implemented postponed dismissed superseded"
+        local_types="research design sub-feature review supporting"
+        build_index | awk -F'\t' -v statuses="$local_statuses" -v types="$local_types" '
+        BEGIN {
+            split(statuses, sl, " "); for (i in sl) valid_status[sl[i]] = 1
+            split(types, tl, " "); for (i in tl) valid_type[tl[i]] = 1
+            errors = 0
+        }
+        {
+            file = $1; tags = $3; id = $4
+            if (id == "") { printf "ERROR %s: missing #+identifier:\n", file; errors++; next }
+            if (id !~ /^[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]$/) { printf "ERROR %s: invalid identifier format: %s\n", file, id; errors++ }
+            if (tags == "") { printf "ERROR %s: missing #+filetags:\n", file; errors++ }
+            else {
+                has_type = 0; has_status = 0
+                gsub(/^:|:$/, "", tags)
+                n = split(tags, tl, ":")
+                for (i = 1; i <= n; i++) {
+                    if (tl[i] in valid_type) has_type = 1
+                    if (tl[i] in valid_status) has_status = 1
+                }
+                if (!has_type) { printf "WARN  %s: no valid type tag in filetags\n", file; errors++ }
+            }
+        }
+        END { printf "\n%d issues found in %d files.\n", errors, NR }
+        '
+        ;;
+    lint)
+        local_headings="Goal|Question|Context|Constraints|Preserved Invariants|References|Acceptance Criteria|Design|Sub-features|Known Deferred Work|Convergence|In Scope|Out of Scope|Evaluation Criteria|Known Leads|Findings|Comparison|Recommendation|Decision|Open Questions|Appendix: Intake"
+        files=$(find_files)
+        [[ -z "$files" ]] && exit 0
+        echo "$files" | xargs awk -v headings="$local_headings" '
+        BEGIN { split(headings, hl, "|"); for (i in hl) standard[hl[i]] = 1 }
+        /^\*\* / {
+            h = $0; sub(/^\*\* +/, "", h)
+            file = FILENAME
+            if (!(h in standard)) {
+                printf "WARN  %s: non-standard heading \"%s\"\n", file, h
+            }
+        }
+        '
+        ;;
+    fix-names)
+        echo "fix-names: scanning for mismatched filenames..."
+        build_index | awk -F'\t' '{
+            file = $1; tags = $3
+            # Extract status and type from filetags
+            gsub(/^:|:$/, "", tags)
+            n = split(tags, tl, ":")
+            status = ""; type = ""
+            for (i = 1; i <= n; i++) {
+                if (tl[i] ~ /^(researched|designed|implemented|postponed|dismissed|superseded)$/) status = tl[i]
+                if (tl[i] ~ /^(research|design|sub-feature|review|supporting)$/) type = tl[i]
+            }
+            if (status == "" || type == "") next
+            # Derive expected suffix
+            expected_suffix = "__" status "_" type ".org"
+            if (file !~ expected_suffix "$") {
+                # Strip existing suffix if any
+                base = file; sub(/__[^/]+\.org$/, "", base); sub(/\.org$/, "", base)
+                expected = base expected_suffix
+                printf "RENAME %s -> %s\n", file, expected
+            }
+        }'
+        ;;
+    goals)
+        filter_tag=""
+        for arg in "${SUBCMD_ARGS[@]}"; do
+            if [[ "$arg" == "--filter" ]]; then
+                continue
+            elif [[ -n "${prev_was_filter:-}" ]]; then
+                filter_tag="$arg"
+                unset prev_was_filter
+            fi
+            [[ "$arg" == "--filter" ]] && prev_was_filter=1
+        done
+        # Extract ** Goal, ** Question, and *** Question under Appendix
+        files=$(if [[ -n "$filter_tag" ]]; then
+            build_index | awk -F'\t' -v tag=":${filter_tag}:" '$3 ~ tag { print $1 }'
+        else
+            find_files
+        fi)
+        [[ -z "$files" ]] && exit 0
+        echo "$files" | xargs awk -v max_lines="${MAX_LINES:-0}" '
+        FNR == 1 {
+            if (capturing) flush()
+            capturing = 0; buf = ""; line_count = 0; in_example = 0
+            capture_level = 0
+            current_file = FILENAME
+        }
+        tolower($0) ~ /^#\+begin_example/ { in_example = 1; next }
+        tolower($0) ~ /^#\+end_example/   { in_example = 0; next }
+        in_example { next }
+        /^\*+ / {
+            # Count heading level (number of leading *)
+            level = 0; tmp = $0
+            while (substr(tmp, 1, 1) == "*") { level++; tmp = substr(tmp, 2) }
+            h = $0; sub(/^\*+[ \t]+/, "", h)
+
+            if (capturing && level <= capture_level) { flush(); capturing = 0 }
+            if (!capturing && (h == "Goal" || h == "Question") && (level == 2 || level == 3)) {
+                capturing = 1; capture_level = level
+            }
+            next
+        }
+        capturing {
+            if (max_lines > 0 && line_count >= max_lines) next
+            buf = buf $0 "\n"
+            line_count++
+        }
+        function flush() { if (buf != "") printf "--- %s ---\n%s", current_file, buf }
+        END { if (capturing) flush() }
+        '
+        ;;
+    constraints)
+        filter_tag=""
+        for arg in "${SUBCMD_ARGS[@]}"; do
+            [[ "$arg" == "--filter" ]] && { prev_was_filter=1; continue; }
+            [[ -n "${prev_was_filter:-}" ]] && { filter_tag="$arg"; unset prev_was_filter; }
+        done
+        extract_section "Constraints" "$filter_tag"
+        ;;
+    deferred-items)
+        structured="false"
+        for arg in "${SUBCMD_ARGS[@]}"; do
+            [[ "$arg" == "--structured" ]] && structured="true"
+        done
+        extract_section "Known Deferred Work" "" "$structured"
+        ;;
+    summary)
+        build_index | while IFS=$'\t' read -r file title filetags identifier signature deferred; do
+            goal_line=$(awk '
+            tolower($0) ~ /^#\+begin_example/ { in_ex = 1; next }
+            tolower($0) ~ /^#\+end_example/   { in_ex = 0; next }
+            in_ex { next }
+            /^\*+ / {
+                h = $0; sub(/^\*+[ \t]+/, "", h)
+                if (h == "Goal" || h == "Question") { found = 1; next }
+            }
+            found && /[^ \t]/ { print; exit }
+            ' "$file" 2>/dev/null)
+            printf "%s\t%s\t%s\n" "$file" "$title" "$goal_line"
+        done
+        ;;
+    *)
+        echo "Unknown subcommand: $SUBCMD" >&2
+        usage
+        ;;
+esac

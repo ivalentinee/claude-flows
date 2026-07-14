@@ -1,0 +1,767 @@
+#+STARTUP: overview
+#+TOC: headlines 2
+#+title:      Research: Denote-Based Design Artifact Linking Across Flows
+#+filetags:   :research:researched:denote:metadata:flows:
+#+identifier: 20260714T150008
+#+signature:
+#+deferred:
+* Research: Denote-Based Design Artifact Linking Across Flows
+
+** Recommendation
+
+The system should adopt denote's front matter convention as the metadata
+layer, with a lightweight filename suffix for at-a-glance status visibility.
+The convergence gate should be a two-stage process: fast metadata filter
+followed by Claude's semantic assessment. Below is the complete goals and
+properties specification.
+
+*** Goals
+
+**** G1: Post-Finalize Status Disambiguation (Common DB)
+
+After a flow finalizes (working directory deleted), it must be possible
+to distinguish between these terminal states by querying file metadata:
+
+| State        | Meaning                                        |
+|--------------+------------------------------------------------|
+| =researched= | Research complete, no design started yet        |
+| =designed=   | Design finalized, not yet implemented           |
+| =implemented=| Implementation complete                         |
+| =postponed=  | Deferred to later, with recorded reason         |
+| =dismissed=  | Evaluated and rejected, with recorded reason    |
+| =superseded= | Replaced by a newer artifact (link to successor)|
+
+Active states (researching, designing, implementing) are already encoded
+by working directory existence and must NOT be duplicated in metadata.
+
+The query =grep "#+filetags:.*:implemented:" designs/*.org= must return
+all implemented artifacts. Equivalent queries must work for every terminal
+state.
+
+**** G2: Feature Grouping
+
+Given an issue/bug ID (e.g., =15987=), return all artifacts related to
+that feature — research docs, design docs, sub-features, reviews.
+
+The query =grep "#+signature: 15987" designs/**/*.org= must return the
+full feature tree.
+
+**** G3: Convergence Detection (Idea Convergence)
+
+Before starting new work, surface existing artifacts with overlapping
+scope. This is a two-stage process:
+
+1. *Fast filter (metadata):* Grep for same signature (issue ID),
+   overlapping filetags, or title word overlap. Narrows ~100+ files to
+   ~5-10 candidates.
+2. *Semantic assessment (Claude):* Read the Goal/Question section of
+   each candidate and assess relevance using natural language
+   understanding.
+
+Metadata enables the fast filter; Claude provides the intelligence.
+Neither alone is sufficient.
+
+**** G4: Deferred Work Discoverability
+
+Postponed and dismissed items must be surfaced during convergence checks.
+Currently, "Known Deferred Work" is scattered across individual design
+docs and duplicated (e.g., "memory recycling" appears in both
+=operation-pool.org= and =operation-dispatch-queue.org=). The system
+must make deferred items first-class and queryable.
+
+**** G5: Supersession Tracking
+
+When a new design replaces an old one, the old artifact must be marked
+=superseded= with a link to the successor. This prevents re-solving
+solved problems and preserves the decision trail.
+
+**** G6: Structured Decision History
+
+The artifact corpus serves as a "semantic git log" — a structured
+history layer that answers /why/ questions git cannot. Git tracks what
+changed and when; the metadata system makes the decision journal
+queryable.
+
+Three high-value gaps where metadata provides clear value beyond git:
+
+| Gap                  | Git alone                          | With metadata                              |
+|----------------------+------------------------------------+--------------------------------------------|
+| Decision status      | Must manually compare design to code | =grep ":implemented:" designs/*.org=       |
+| Feature grouping     | =git log --grep=15987= (commits only) | =denote-query signature 15987= (all artifacts) |
+| Deferred work        | No way to surface cross-doc duplication | =denote-query deferred= + semantic read    |
+
+The 4-field schema is sufficient — no additional fields needed. Git
+remains authoritative for timestamps and authorship.
+
+**** Synthesis Goals (S1-S6)
+
+Beyond gatekeeping (G1-G5), the corpus enables proactive synthesis —
+using existing artifacts as input to generate new insight. Where
+gatekeeping asks "is this consistent?", synthesis asks "what should
+we do next?"
+
+All synthesis goals use the same two-stage pattern as the convergence
+gate: metadata filter first, then semantic content read (Goal,
+Constraints, Known Deferred Work sections).
+
+| Goal | Name                         | Question                                      | Trigger            |
+|------+------------------------------+-----------------------------------------------+--------------------|
+| S1   | Roadmap Gap Report           | What is designed but not implemented?          | =/roadmap=         |
+| S2   | Deferred Work Synthesis      | Which deferred items cross multiple designs?   | Convergence gate   |
+| S3   | Constraint Archaeology       | What designs have stale constraints?           | Post-finalize      |
+| S4   | Guided Exploration           | What do we know about area X?                  | =/explore AREA=    |
+| S5   | Dismissed Idea Reconsideration | Are dismissed ideas now feasible?             | Convergence gate   |
+| S6   | Topological Next Action      | What should I work on next?                    | =/next=            |
+
+*Trigger model:* Synthesis goals are *explicit-only* — invoked via
+standalone commands, never as part of regular design/research flows.
+This avoids synthesis fatigue. The convergence gate extensions (S2, S5)
+are the exception: they enrich the gate that already runs at flow init
+and are *default-on*.
+
+| Category           | Goals    | Trigger           | When        |
+|--------------------+----------+-------------------+-------------|
+| Convergence gate   | S2, S5   | Automatic (init)  | Default-on  |
+| Standalone synthesis | S1, S3, S4, S6 | Explicit command | On demand |
+
+Non-conforming artifacts (missing front matter) are *skipped* by
+synthesis — no graceful degradation, no heuristic fallbacks. This
+keeps synthesis fast and predictable.
+
+CLAUDE.md should reference the system's existence so Claude knows it
+is available, but should NOT trigger corpus analysis at session start.
+Analysis runs only when explicitly requested or when a flow init
+triggers the convergence gate.
+
+*Phasing:* S1+S4 first (simplest, highest immediate value), then S2+S5
+(convergence gate extensions), then S3 (highest novelty — no existing
+tool does this), then S6 (depends on all others).
+
+*Concrete example from corpus:* =operation-pool.org= has a Constraint
+citing port-based communication. =port-communication.org= subsequently
+replaced ports with Unix sockets. S3 would flag that the pool design's
+constraint is stale — there may be unexplored design space.
+
+Detailed analysis in =designs/denote-flow-linking-research/synthesis-goals.org=.
+
+*** Properties
+
+**** P1: Filesystem-native queryability
+
+All queries must work with Claude's tools: Glob (filename patterns),
+Grep (content search), Read (file contents). No database, no Emacs,
+no external tooling required.
+
+**** P2: Source of truth in each file
+
+Metadata lives in the artifact's own front matter, not in a central
+registry. A generated registry may exist as a cache/index, but the
+front matter is authoritative. If the registry is deleted, it can be
+rebuilt from individual files.
+
+**** P3: Human-scannable filenames
+
+Filenames must remain readable in =ls= output without decoding
+timestamps or abbreviations. Status and type should be visible at a
+glance. Full denote timestamp prefixes are rejected in favor of a
+suffix-based approach.
+
+**** P4: Automatic metadata maintenance
+
+Claude maintains metadata at flow boundaries (init, finalize, commit).
+The user never manually edits front matter for status tracking. Status
+transitions happen as part of existing flow commands.
+
+**** P5: Artifact type awareness
+
+Research docs and design docs have different valid terminal states.
+A research doc is never "implemented" — it is "researched" or
+"superseded." The metadata schema must encode artifact type and
+enforce type-appropriate status values.
+
+**** P6: Big-bang migration, strict conformance
+
+All existing files are migrated at once (identifiers from file mtime).
+Non-conforming artifacts are *skipped* by queries and synthesis — no
+heuristic fallbacks. This keeps the system fast and predictable.
+
+**** P7: Relationship expressiveness via existing conventions
+
+Relationships between artifacts are expressed through existing org-mode
+link conventions: =[[file:]]= links in References and Sub-features
+sections. Link types are inferred from context (which section the link
+appears in), not from typed link syntax. Backlink discovery is computed
+on demand by grepping for filenames across all docs.
+
+**** P8: Git as complementary data source
+
+Git history is authoritative for timestamps (creation, modification).
+The =#+date:= front matter field is omitted — =#+identifier:= provides
+uniqueness, git provides chronology. Branch names (=feature/15987-*=)
+complement =#+signature:= for issue-ID grouping.
+
+**** P9: On-demand query script as extraction layer
+
+An AWK-based bash script (=denote-query=) serves as the primary query
+AND extraction interface, replacing the generated registry. Git-tracked
+alongside flow files at =~/.claude/flows/denote-query=. Claude calls it
+via the Bash tool; the user can call it directly.
+
+Metadata subcommands (existing):
+
+| Command             | Purpose                                        |
+|---------------------+------------------------------------------------|
+| =index=             | Full metadata dump (subsumes generated registry)|
+| =status <s>=        | Filter by terminal status                      |
+| =signature <id>=    | Filter by issue/feature ID                     |
+| =deferred=          | All postponed + dismissed artifacts             |
+| =overlap <words>=   | Keyword overlap scoring for convergence gate    |
+| =backlinks <file>=  | Files linking to a given file                  |
+| =tags= / =statuses= | Aggregation: unique tags, status counts        |
+
+Section extraction subcommands (new, for token optimization):
+
+| Command                        | Purpose                                  |
+|--------------------------------+------------------------------------------|
+| =goals [--filter TAG]=         | Extract Goal sections (batch)            |
+| =deferred-items [--structured]= | Extract deferred items (names or prose) |
+| =constraints [--filter TAG]=   | Extract Constraints sections (batch)     |
+| =summary=                      | Title + first sentence of Goal (compact) |
+
+The section extraction commands are the single highest-impact token
+optimization: one Bash call replaces 10-200 Read tool calls, eliminating
+~500 tokens of tool-call overhead per 10 files. Output formats: =table=
+(human), =tsv= (cheapest for Claude), =paths= (for chaining).
+
+Performance: <20ms for all queries at 200 files.
+
+**** P10: Query-first architecture
+
+The =denote-query= script is the *primary interface* for all artifact
+interaction. Direct file reads are the fallback for insufficient data.
+No manual scale thresholds — the script is always the entry point.
+
+Read tiers (inspired by demand paging):
+
+| Tier | Content                    | Tokens (200 files) | How accessed        |
+|------+----------------------------+--------------------+---------------------|
+| Cold | All metadata (index)       | ~1,600             | =denote-query index=|
+| Warm | Candidate sections (batch) | ~780 per 10 files  | =denote-query goals=|
+| Hot  | Full artifact              | 3K-50K             | Read tool (fallback)|
+
+Token budgets by use case at 200 files:
+
+| Use case           | Without script | With script extraction | Savings |
+|--------------------+----------------+------------------------+---------|
+| Convergence gate   | ~25,600        | ~830                   | 97%     |
+| S1 Roadmap Gap     | ~25,600        | ~15,650                | 39%     |
+| S2 Deferred Work   | ~10,500        | ~3,000 (with #+deferred:)| 71%  |
+| S3 Constraint Arch | ~13,700        | ~13,750 (content-bound)| ~0%     |
+| S6 Next Action     | ~100K+         | ~11K (with subagents)  | 89%     |
+
+At projected scale (<200 files), all goals fit within ~50K tokens. At
+500+ files, subagent delegation keeps main context under ~11K tokens.
+
+*** Recommended Design Dimensions
+
+The system has four orthogonal design dimensions. The recommendation
+for each:
+
+| Dimension        | Recommendation                                    |
+|------------------+---------------------------------------------------|
+| Naming           | Suffix-only: =TITLE__STATUS_TYPE.org=             |
+| Schema           | 4+2 front matter fields + terminal-state lifecycle |
+| Query/extraction | =denote-query= script (metadata + section extraction) |
+| Convergence      | Two-stage: metadata filter + Claude semantic read  |
+| Synthesis        | S1-S6 goals, phased rollout, same two-stage pattern|
+| Token management | Script extraction + tiered reads + TSV format      |
+
+See [[*Comparison]] for trade-off analysis of each dimension.
+
+*** Confidence
+
+High. The goals are clear from the user's original framing. The
+properties follow directly from the hard constraints (filesystem tools,
+no Emacs, transparent integration) and the Critic's corrections
+(semantic convergence, post-finalize focus, denote compatibility as
+means not end).
+
+** Comparison
+
+The design space has four orthogonal dimensions. Each dimension has a
+spectrum of choices. The options from the gather phase map to positions
+on these spectra.
+
+*** Dimension 1: Naming Convention
+
+What goes in the filename?
+
+| Position         | Example filename                                      | Pros              | Cons               |
+|------------------+-------------------------------------------------------+--------------------+--------------------|
+| No change        | =operation-pool.org=                                  | Zero migration     | Status invisible   |
+| Status suffix    | =operation-pool__implemented.org=                     | Status visible     | Light migration    |
+| Sig + status     | =15987--operation-pool__implemented_design.org=        | Issue grouping     | Moderate migration |
+| Full denote      | =20240713T113400=15987--operation-pool__design_implemented.org= | Full ecosystem  | Long filenames     |
+
+*Recommendation:* Status suffix. It provides at-a-glance status in =ls=
+output without the noise of timestamps or signatures. Issue ID grouping
+is available via =#+signature:= grep. The =.research.org= suffix
+convention is preserved alongside the status suffix (e.g.,
+=operation-pool-reuse.research__researched.org= or replaced by
+=operation-pool-reuse__researched_research.org=).
+
+*** Dimension 2: Metadata Schema
+
+What front matter fields, and what status values?
+
+*Recommended fields:*
+
+| Field           | Purpose                           | Example                     |
+|-----------------+-----------------------------------+-----------------------------|
+| =#+title:=      | Human-readable title              | =[15987] Operation Pool=     |
+| =#+filetags:=   | Status + type + domain tags       | =:design:implemented:pool:= |
+| =#+identifier:= | Unique key (denote timestamp)     | =20240713T113400=            |
+| =#+signature:=  | Issue/feature ID for grouping     | =15987=                     |
+
+Core: 4 fields. No =#+date:= (git is authoritative). No =#+signature:=
+hierarchy beyond the issue ID (sub-features use =[[file:]]= links, not
+signature sequences).
+
+*Phased extensions* (for token optimization):
+
+| Field          | When to add  | Purpose                               |
+|----------------+--------------+---------------------------------------|
+| =#+deferred:=  | Now          | Greppable deferred item names         |
+| =#+summary:=   | At ~50 files | One-line summary for convergence gate |
+
+=#+deferred:= uses org-style tags (=:memory-recycling:pool-shrinking:=)
+for boundary-aware grep. Enables S2 (Deferred Work Synthesis) as a pure
+metadata operation. =#+summary:= collapses the two-stage convergence
+gate into a single richer metadata pass.
+
+*Status vocabulary* (terminal states only):
+
+| Status        | Valid for types         |
+|---------------+------------------------|
+| =researched=  | research               |
+| =designed=    | design, sub-feature    |
+| =implemented= | design, sub-feature    |
+| =postponed=   | any                    |
+| =dismissed=   | any                    |
+| =superseded=  | any                    |
+
+*Type vocabulary:*
+
+| Type           | Meaning                |
+|----------------+------------------------|
+| =research=     | Research document      |
+| =design=       | Design document        |
+| =sub-feature=  | Sub-feature design     |
+
+*Domain vocabulary:* Inferred from artifact titles and codebase. Not
+predefined — grows organically (e.g., =pool=, =communication=,
+=scaling=, =operations=). Used by convergence gate for keyword overlap
+detection.
+
+*** Dimension 3: Query Mechanism
+
+How does Claude find relevant artifacts?
+
+| Approach            | Speed    | Maintenance  | Freshness      | Complex queries |
+|---------------------+----------+--------------+----------------+-----------------|
+| Raw grep            | O(n)     | Zero         | Always current | Manual per-query|
+| Generated registry  | O(1)     | Auto-rebuild | Stale          | Pre-computed    |
+| =denote-query= script | O(n)  | Script code  | Always current | First-class     |
+
+*Recommendation:* =denote-query= script. It combines raw grep's
+freshness with the registry's structured output. AWK-based, processes
+all front matter in a single pass (<20ms at 200 files). Subcommands:
+
+| Command             | Purpose                                        |
+|---------------------+------------------------------------------------|
+| =index=             | Full metadata dump (subsumes generated registry)|
+| =status <s>=        | Filter by terminal status                      |
+| =signature <id>=    | Filter by issue/feature ID                     |
+| =deferred=          | All postponed + dismissed artifacts             |
+| =overlap <words>=   | Keyword overlap scoring for convergence gate    |
+| =backlinks <file>=  | Files linking to a given file                  |
+| =tags= / =statuses= | Aggregation: unique tags, status counts        |
+
+Output formats: =table= (human), =tsv= (pipeable), =paths= (for
+chaining with Read tool). Git-tracked at =~/.claude/flows/denote-query=.
+
+The script subsumes the generated registry — =denote-query index=
+produces the same output on demand, always fresh, no maintenance.
+
+*** Dimension 4: Convergence Behavior
+
+How does the convergence gate work?
+
+*Two-stage process:*
+
+1. *Fast filter (metadata):*
+   - Same =#+signature:= (exact match — same issue ID)
+   - Overlapping =#+filetags:= (shared status, type, or domain tags)
+   - Title word overlap (>2 non-stopword matches)
+   - All =postponed= / =dismissed= artifacts (always surfaced)
+
+2. *Semantic assessment (Claude):*
+   - Read Goal/Question section of each candidate (~5-10 after filter)
+   - Assess: is this a duplicate? Related work? Previously deferred
+     item that covers the new scope?
+   - Report to user with recommended action (extend, supersede, ignore)
+
+*Placement:* At flow init, before the user fills in intake fields. The
+gate runs automatically; findings are reported as part of the init
+output.
+
+*** Discarded Options
+
+| Option                    | Verdict                                         |
+|---------------------------+-------------------------------------------------|
+| Full denote naming        | Rejected: filename noise outweighs glob benefit |
+| Generated registry file   | Subsumed by =denote-query= script (always fresh)|
+| Manual registry           | Subsumed by =denote-query= script               |
+| 9-value status lifecycle  | Simplified: active states redundant with dirs    |
+| Org property drawers      | Harder to grep than front matter keywords        |
+| Signature-based hierarchy | Complexity not justified; =[[file:]]= links suffice |
+
+** Findings
+
+*** Codebase Audit
+
+35 =.org= files in =designs/=: 12 root designs, 9 research docs, 14
+sub-feature/supporting docs. Zero structured metadata. Status tracked
+implicitly via working directory existence. Deferred work scattered and
+duplicated across docs (e.g., "memory recycling" in both
+=operation-pool.org= and =operation-dispatch-queue.org=).
+
+Cross-references are unidirectional =[[file:path][text]]= links in
+References and Sub-features sections. No backlink tracking, no typed
+relationships. Some docs use =[ISSUE-ID]= in titles (e.g., =[15987]=)
+but not in filenames.
+
+*** External Survey Summary
+
+Detailed findings in =designs/denote-flow-linking-research/findings.org=.
+Options registry in =designs/denote-flow-linking-research/options.org=.
+
+**** Denote Conventions (Primary Source)
+
+Denote's naming scheme =ID==SIG--TITLE__KEYWORDS.EXT= provides a
+filesystem-native metadata encoding. Key features relevant to our use
+case:
+
+- *Identifier* (=YYYYMMDDThhmmss=): unique, chronological, stable link
+  anchor that survives renames.
+- *Signature*: arbitrary string for grouping. Can be an issue ID
+  (=15987=) or a hierarchical sequence (=15987=1=, =15987=2=).
+- *Keywords*: tags in the filename, greppable via glob. Denote supports
+  both controlled vocabulary (predefined) and inferred (from existing
+  files) keywords.
+- *Front matter*: =#+title:=, =#+date:=, =#+filetags:=, =#+identifier:=,
+  =#+signature:= provide rich metadata for grep-based queries.
+- *Renaming*: status transitions are expressed as keyword changes in
+  the filename + front matter. Denote has batch rename commands, but
+  Claude can do the same with =sed= + =mv=.
+- *Linking*: references use the identifier, not the filename. Links
+  survive renames.
+
+The =denote-sequence= package extends signatures into hierarchical
+numbering (=1=, =1=1=, =1=2=) for parent/child relationships. This
+maps directly to the project's issue-ID + sub-feature pattern.
+
+**** ADR Status Lifecycle
+
+Architecture Decision Records provide a proven status model:
+- Nygard (original): proposed -> accepted -> deprecated/superseded
+- MADR: proposed | rejected | accepted | deprecated | superseded by ADR-NNNN
+- log4brains: proposed -> accepted -> deprecated -> superseded (immutable
+  records, only status changes)
+- Five-stage lifecycle: Initiating -> Researching -> Evaluating ->
+  Implementing -> Maintaining -> Sunsetting
+
+ADR tools (=adr-tools=, =log4brains=) handle supersession automatically:
+creating a new ADR that supersedes an old one updates the old one's
+status. This bidirectional linking is valuable.
+
+**** Other Patterns
+
+- *Zettelkasten structure notes:* index notes for organizing related
+  content → maps to a generated registry for convergence queries.
+- *Org-roam features replicable with grep:* backlinks (grep for
+  identifiers), unlinked references (title/keyword overlap), tag
+  filtering (grep =#+filetags:=).
+- *Obsidian Dataview principle:* structured frontmatter + queries =
+  database-like power. Our equivalent: grep on front matter fields.
+- *Decision Guardian pattern:* workflow-start check against existing
+  records → exactly the convergence gate behavior needed.
+
+*** Constraints
+
+*Hard:*
+1. Working directories are ephemeral (soft with strong justification —
+   metadata must live in root docs)
+2. Claude has filesystem-only tools (Glob, Grep, Read)
+3. No Emacs integration — use denote convention, not package
+4. Changes must be transparent to existing flow logic
+5. Migration needed for 35 files with no structured metadata
+
+*Soft:* human-readable filenames, deferred work discoverability,
+convergence gate at init.
+
+*Anti-constraints:* full denote adoption not required; metadata can be
+distributed; real-time Emacs sync not needed.
+
+*** On-Demand Query Script
+
+A bash/AWK script (=denote-query=, ~310 lines) replaces the generated
+registry. Processes all artifact front matter in a single AWK pass;
+completes all queries in <20ms at 200 files. No prior art exists for
+denote-style CLI querying — denote itself has no CLI tooling. The
+script is novel but straightforward.
+
+The script subsumes the registry by making =denote-query index= a
+subcommand. The registry becomes one output format, not a maintained
+artifact. This eliminates the staleness problem entirely.
+
+Prototype tested at =/tmp/denote-test/denote-query-v2=.
+
+*** Synthesis Goals
+
+Six proactive synthesis goals (S1-S6) extend the system from reactive
+gatekeeping to generative insight. All use the same two-stage pattern
+as the convergence gate (metadata filter → content read). At projected
+scale (<200 files), reading Goal + Constraints + Known Deferred Work
+sections of all artifacts consumes ~110K tokens — well within the 1M
+context window.
+
+No existing ADR tool, knowledge management system, or AI project
+management tool offers proactive "what should we reconsider?" or
+"what constraints are stale?" synthesis. S3 (Constraint Archaeology)
+is the highest-novelty goal.
+
+Detailed analysis in =designs/denote-flow-linking-research/synthesis-goals.org=.
+
+*** History Lookup Value (Metadata vs. Git)
+
+Git answers "what changed, when, by whom." The metadata system answers
+"what status, which feature group, what was considered and why." Three
+high-value gaps where metadata provides clear value beyond git:
+
+1. *Decision status:* "Is operation-pool implemented or just designed?"
+   — git has zero concept of this. A grep on filetags is instant;
+   without metadata, answering requires 15-30 minutes of manual
+   comparison per artifact.
+
+2. *Feature grouping across artifact types:* =git log --grep="15987"=
+   returns 7 implementation commits. The design corpus has 8 artifacts
+   (research, design, review). =denote-query signature 15987= returns
+   all of them.
+
+3. *Deferred work aggregation:* "Memory recycling" appears in both
+   =operation-pool.org= and =operation-dispatch-queue.org=. Git has
+   no way to surface this duplication.
+
+The 4-field schema is sufficient. The artifact corpus IS the structured
+decision history — making it queryable is the primary value proposition.
+
+*** Token Optimization
+
+Detailed analysis in =designs/denote-flow-linking-research/token-optimization.org=.
+
+*Measured budgets (22 files, projected to 200):*
+
+| Content layer          | 22 files | 200 files | 500 files |
+|------------------------+----------+-----------+-----------|
+| Front matter (4 lines) | 172 tok  | ~1,600    | ~3,900    |
+| Goal sections          | 1,714    | ~15,600   | ~39,000   |
+| Constraints sections   | 1,511    | ~13,700   | ~34,300   |
+| Known Deferred Work    | 1,152    | ~10,500   | ~26,200   |
+| Full documents         | 106,194  | ~965,400  | ~2.4M     |
+
+*Key finding:* The artifacts' consistent structure (standard section
+headings) is the primary optimization enabler. A 10-line AWK script
+can extract any named section from any number of files in <20ms. The
+strategy: make structure more consistent (denote conventions), exploit
+structure with scripts (extraction layer), let Claude focus on analysis
+(reasoning layer).
+
+*Priority-ordered optimizations:*
+
+1. *Script section extraction (now):* 4 new =denote-query= subcommands
+   (goals, constraints, deferred-items, summary). Eliminates per-file
+   Read tool calls. 97% token savings for convergence gate.
+2. *TSV as default Claude format (now):* 5x cheaper than table format.
+3. *=#+deferred:= front matter field (now):* Enables S2 as pure
+   metadata operation. Saves ~7,500 tokens at 200 files.
+4. *Tiered convergence pattern (now):* Signature check → tag overlap →
+   section read. ~700 tokens saved per flow init.
+5. *=#+summary:= field (at ~50 files):* Collapses two-stage convergence
+   into one richer metadata pass. Saves ~10K tokens at 200 files.
+6. *Subagent delegation (at ~200+ files):* For S6 only. Keeps main
+   context under ~11K tokens.
+
+*What NOT to pursue:* section digests in front matter (lossy), compact
+filetags (0.03% savings), abbreviated tags (harmful), vector embeddings
+(overkill at <500 files), sliding window (map-reduce is better).
+
+*External patterns applied:*
+- Aider repo map: "signatures, not source" → metadata + first sentence
+- Cursor: embeddings only relevant at 500+ files
+- Copilot: prompt caching → read metadata early and identically each time
+- Context engineering (2026): progressive disclosure is the consensus pattern
+- Demand paging (academic): hot/warm/cold tier vocabulary for artifact reads
+
+*** Critic Corrections
+
+11 concerns filed, all resolved:
+- Options 2/3/9 were parameter variations, not distinct options →
+  restructured as orthogonal dimensions
+- Denote compatibility demoted from evaluation criterion to nice-to-have
+- Scale (<200 files) makes performance irrelevant to the choice
+- Status lifecycle narrowed to post-finalize terminal states only
+- Convergence gate recognized as two-stage: metadata filter + Claude
+  semantic assessment
+- Research scope re-centered on goals/properties as primary deliverable
+
+** Decision
+
+All open questions resolved by user. Decisions below.
+
+*** Migration
+Big-bang migration of all existing files. Identifiers derived from file
+mtime (design files are not git-tracked, so git history is unavailable).
+
+*** Naming
+The =.research.org= suffix is *replaced* entirely by denote keywords.
+Full commitment to the new system. Example:
+=operation-pool-reuse.research.org= → =operation-pool-reuse__researched_research.org=
+
+*** Supersession
+Automatic. When Claude creates a design that supersedes an old one, it
+updates the old artifact's filetags and adds a supersession note —
+without user confirmation. A chat notice is emitted.
+
+*** Domain Keywords
+Inferred / open tag system. No predefined vocabulary. Tags grow
+organically from existing filetags. Lower maintenance, accepts some
+inconsistency.
+
+*** Convergence Gate Output
+Persistent — written as a section in the design doc. This creates a
+traceable record of what was checked and found at design inception.
+
+*** Script Scope
+Recursive by default. The script traverses subdirectories unless a
+=--root-only= flag is passed. This ensures sub-feature artifacts in
+directories like =resource-scaling/= are always included.
+
+*** Synthesis Output
+Synthesis is always part of a specifically requested design or research
+flow, which automatically implies file artifacts. No ephemeral-only
+output — synthesis produces persistent =.org= files within the flow's
+artifact directory.
+
+*** =#+deferred:= Format
+Org-style tags: =:memory-recycling:pool-shrinking:=. Enables
+boundary-aware grep (=:memory-recycling:= won't match
+=:memory-recycling-v2:=).
+
+*** Section Heading Enforcement
+Flows are updated to enforce exact heading names (=** Goal=,
+=** Constraints=, =** Known Deferred Work=, =** References=, etc.).
+This enables reliable AWK-based section extraction.
+
+*** Query-First Architecture
+The system is *query-first*: the =denote-query= script is the primary
+interface for all artifact discovery and content extraction. Direct
+file reads (via Read tool) are the fallback for when the script's
+output is insufficient — e.g., when Claude needs the full Design
+section for deep analysis. There are no manual scale thresholds;
+the script is always the entry point.
+
+*** Implementation: Separate File, Mandatory by Default
+All denote-specific flow amendments (front matter generation,
+convergence gate, status transitions, section heading enforcement,
+=denote-query= integration) must be placed in a *separate file* next to
+the flow descriptions (e.g., =~/.claude/flows/DENOTE.md= or similar).
+The flow files (=FULL-FLOW.md=, =DESIGN-FLOW.md=, =RESEARCH-FLOW.md=,
+=IMPLEMENTATION-FLOW.md=) reference this file rather than inlining the
+denote behavior.
+
+Denote-specific behavior is *mandatory for flow execution by default*.
+A project may opt out by explicitly stating so in its =CLAUDE.md=. If
+a project's =CLAUDE.md= does not mention denote, the denote system is
+active. This ensures new projects automatically benefit from the
+metadata system without per-project configuration.
+
+-----
+
+/Appendix: intake sections follow./
+
+** Question
+What specific goals and properties should a denote-based linking and
+metadata system have to serve as a "common database" across flow
+artifacts (research docs, design docs, implementation records), enabling
+status tracking and idea convergence detection?
+
+** Context
+The project uses custom-designed flows (Research, Design, Full,
+Implementation) that produce =.org= artifacts in =designs/=. Currently
+these artifacts are loosely connected — manual =[[file:]]= links in
+References/Sub-features sections, no systematic status tracking across
+features, and "Known Deferred Work" scattered across individual docs.
+
+Prior research (this conversation) compared Denote and org-roam.
+Conclusion: Denote's filesystem-based conventions (identifier in
+filename, keywords-as-tags, front matter) are the better fit because
+Claude Code is the primary producer of artifacts and needs zero-Emacs-
+dependency read/write. org-roam's SQLite DB adds power but introduces
+a sync gap that doesn't match the workflow.
+
+Two user goals drive this:
+1. *Common DB* — unified view of what was designed, implemented,
+   postponed, dismissed across all features
+2. *Idea convergence* — when starting new work, detect duplicates,
+   related prior work, and previously deferred items that overlap
+
+** In Scope
+- Metadata schema: what fields/keywords/identifiers go on each artifact
+- Status lifecycle: how artifacts transition between states
+- Linking conventions: how artifacts reference each other
+- Convergence gate: what Claude checks at the start of new work
+- Deferred work tracking: how postponed/dismissed items become
+  discoverable
+- Integration with existing flow commands (init, finalize, commit)
+- File naming conventions compatible with denote
+
+** Out of Scope
+- org-roam integration (decided against as primary)
+- Changes to flow logic beyond linking/metadata concerns
+- Emacs configuration or denote.el package setup
+- The actual code changes to flow =.md= files (that's a subsequent
+  Design/Implementation task)
+
+** Evaluation Criteria
+1. Zero-infrastructure queryability — Claude can discover and filter
+   artifacts using only filesystem operations (glob, grep, read)
+2. Minimal naming friction — filenames remain human-scannable despite
+   added metadata
+3. Completeness — no artifact status or relationship falls through
+   the cracks
+4. Low maintenance burden — metadata stays correct without manual
+   curation
+5. Compatibility — works with existing =designs/= directory and
+   current flow outputs without a big-bang migration
+
+** Known Leads
+- Denote naming convention: =ID==SIGNATURE--TITLE__KEYWORDS.EXT=
+- Denote front matter: =#+identifier:=, =#+filetags:=, =#+signature:=
+- Current flow artifacts in =designs/= (26+ files across research,
+  design, and sub-feature docs)
+- Current cross-referencing: =[[file:]]= links in References and
+  Sub-features sections
+- Current status tracking: implicit (design dir exists = in-progress,
+  deleted = finalized), no explicit lifecycle
+- "Known Deferred Work" sections in design docs

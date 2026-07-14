@@ -93,6 +93,11 @@ steps — the user picks by intent, not by process.
 - Full: `~/.claude/flows/FULL-FLOW.md`
 - Implementation: `~/.claude/flows/IMPLEMENTATION-FLOW.md`
 - Code Quality: `~/.claude/flows/CODE-QUALITY.md` (read before writing code)
+- Denote Metadata: `~/.claude/flows/DENOTE.md` (read by all flows automatically)
+- Query Script: `~/.claude/flows/denote-query` (artifact queries and extraction)
+- Design Artifacts: `~/.claude/flows/designs/` (denote-named flow design docs)
 
 Read the selected flow file before starting. Do not memorize
 flow steps — always read the file for the current instructions.
+All flows reference `DENOTE.md` for metadata behavior (active by
+default; disabled by `denote: disabled` in project CLAUDE.md).

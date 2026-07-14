@@ -1,5 +1,16 @@
 # Research Flow — Instructions for Claude
 
+## Denote Metadata System
+
+Read and apply `DENOTE.md` (in this directory) alongside this flow.
+DENOTE.md specifies: front matter schema, naming conventions, status
+transitions, convergence gate, section heading standards, and the
+`denote-query` script interface. DENOTE.md naming rules supersede
+naming patterns in this flow file. Denote behavior is mandatory
+unless the project's CLAUDE.md contains `denote: disabled`.
+
+---
+
 A lightweight, autonomous flow for researching questions before
 committing to a design. Produces a structured research document that
 feeds into the Design or Full flow as a Reference.

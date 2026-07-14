@@ -1,5 +1,16 @@
 # Implementation Flow — Instructions for Claude
 
+## Denote Metadata System
+
+Read and apply `DENOTE.md` (in this directory) alongside this flow.
+DENOTE.md specifies: front matter schema, naming conventions, status
+transitions, convergence gate, section heading standards, and the
+`denote-query` script interface. DENOTE.md naming rules supersede
+naming patterns in this flow file. Denote behavior is mandatory
+unless the project's CLAUDE.md contains `denote: disabled`.
+
+---
+
 A structured process for implementing features after the Design flow
 is finalized. Every feature goes through the same steps: implement,
 self-review, fix, then iterate with the user via review-plan and
@@ -167,7 +178,7 @@ against the actual code, not memory.
 
 Skip LSP (inheritance-oriented), ISP (Elixir behaviours are already minimal), OCP (leads to premature extension points). Do NOT recommend abstractions that don't serve an immediate need — three similar lines of code is better than a premature abstraction.
 
-| 8 | **Abstraction Minimalist** | Check that abstraction levels are consistent within each function and module (see checklist below). The goal is context minimization: reading a function should not require holding details from a different abstraction tier. Flag violations as extraction opportunities, not style complaints |
+| 8 | **Abstraction Minimalist** | Check that abstraction levels are consistent within each function and module (see checklist below). Hunt for module split candidates: modules over ~150 lines with ≥2 tiers of ≥3 functions each. The goal is context minimization: reading a function should not require holding details from a different abstraction tier. Flag violations as extraction opportunities, not style complaints |
 
 **Abstraction Minimalist checklist** (for reviewer #8):
 
@@ -186,6 +197,22 @@ Skip LSP (inheritance-oriented), ISP (Elixir behaviours are already minimal), OC
   `parse_amqp_timestamp/1` (utility) has a leaky abstraction surface
 - Public functions should read like a coherent API at one level;
   lower-tier helpers should be private
+
+*Module split — can the module be decomposed by abstraction tier?*
+- For modules over ~150 lines, actively look for a tier split:
+  assign each function (public and private) a tier label (e.g.,
+  "orchestration", "data transformation", "I/O", "formatting",
+  "tracing/observability"). If two or more tiers each have ≥3
+  functions AND ≥30 lines, the module is a split candidate.
+- Group the lower-tier functions by micro-domain (e.g., tracing,
+  result processing, registry/tracking, formatting). Each group
+  with a coherent purpose becomes a sub-module.
+- The high-tier module should read as pure orchestration after the
+  split: its private functions call into sub-modules, never doing
+  low-tier work inline.
+- Do NOT split when: the module is under ~150 lines, the "low tier"
+  is just 2-3 small helpers, or the split would create single-caller
+  modules with no independent testability or reuse value.
 
 *Cross-module — are callers forced to know implementation details?*
 - If a caller must understand the internal data layout, parsing

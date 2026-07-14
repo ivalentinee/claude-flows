@@ -1,5 +1,16 @@
 # Full Flow — Instructions for Claude
 
+## Denote Metadata System
+
+Read and apply `DENOTE.md` (in this directory) alongside this flow.
+DENOTE.md specifies: front matter schema, naming conventions, status
+transitions, convergence gate, section heading standards, and the
+`denote-query` script interface. DENOTE.md naming rules supersede
+naming patterns in this flow file. Denote behavior is mandatory
+unless the project's CLAUDE.md contains `denote: disabled`.
+
+---
+
 A combined design-through-implementation flow that maximizes Claude
 autonomy while enforcing every quality gate. Claude resolves design
 questions autonomously unless they are critical; every review step is
@@ -484,7 +495,7 @@ an adversarial stance:
 | 5 | **Spec Reviewer** | Schema correctness, runtime validation matching declared schemas |
 | 6 | **Style Reviewer** | Naming consistency, pattern consistency with existing codebase, organization |
 | 7 | **Principles Reviewer** | SRP, DIP, Information Expert, Low Coupling, High Cohesion, Creator (smell detection, not mandates) |
-| 8 | **Abstraction Minimalist** | Function-level tier consistency, module-level API coherence, cross-module tier leaks |
+| 8 | **Abstraction Minimalist** | Function-level tier consistency, module-level API coherence, cross-module tier leaks, module split candidates (hunt for ≥2 tiers with ≥3 functions each in modules over ~150 lines — propose sub-module decomposition by micro-domain) |
 
 Each produces a structured report (Critical / High / Medium / Low /
 Info). Claude collates and deduplicates into `review.org` in the

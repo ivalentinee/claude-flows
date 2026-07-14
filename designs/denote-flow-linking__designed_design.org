@@ -1,0 +1,598 @@
+#+STARTUP: overview
+#+title:      Denote-Based Design Artifact Linking
+#+filetags:   :design:designed:denote:metadata:flows:
+#+identifier: 20260714T152747
+#+signature:
+#+deferred:   :summary-field:subagent-delegation-s6:vector-embeddings:synthesis-s3-s6:
+* Denote-Based Design Artifact Linking
+
+** Goal
+Implement a denote-convention metadata system across all flow artifacts
+(research docs, design docs, sub-features) to enable:
+
+1. A queryable "common DB" of artifact status (designed, implemented,
+   postponed, dismissed, superseded)
+2. Automatic convergence detection when starting new work (duplicate
+   and related artifact surfacing)
+3. Proactive synthesis across the corpus (roadmap gaps, stale
+   constraints, deferred work ranking)
+
+The system uses denote-style front matter as the metadata layer, a
+bash/AWK query script as the extraction layer, and Claude's semantic
+understanding as the analysis layer.
+
+** Constraints
+- No Emacs dependency — use denote conventions, not the denote.el package
+- All queries must work with filesystem tools only (Glob, Grep, Read, Bash)
+- Denote-specific amendments go in a *separate file*
+  (=~/.claude/flows/DENOTE.md=) referenced by flow files, NOT inlined
+  into flow descriptions
+- Denote behavior is *mandatory by default* for flow execution; a
+  project opts out by stating so in its =CLAUDE.md=
+- Existing flow logic is not restructured — denote behavior layers on top
+- Big-bang migration of existing ~29 artifact files (identifiers from
+  file mtime). Working directory files are excluded from migration.
+- Non-conforming artifacts are skipped by queries and synthesis (strict)
+- Section headings must be enforced as exact names across all flows
+
+** Preserved Invariants
+- Flow command interface (init, full, loop, finalize, commit, resume)
+  remains unchanged
+- Design doc section structure (Goal, Constraints, Preserved Invariants,
+  References, Acceptance Criteria, Design, Sub-features, Known Deferred
+  Work) remains unchanged
+- Research doc section structure (Question, Context, Findings,
+  Comparison, Recommendation, Decision) remains unchanged
+- Working directory lifecycle (created at init, deleted at finalize)
+  remains unchanged
+- Existing =[[file:]]= link conventions for cross-references remain
+  the primary relationship mechanism
+
+** References
+- =designs/denote-flow-linking.research.org= — full research with goals,
+  properties, comparison, and all decisions
+- =~/.claude/flows/FULL-FLOW.md= — primary flow to amend
+- =~/.claude/flows/DESIGN-FLOW.md= — design-only flow to amend
+- =~/.claude/flows/RESEARCH-FLOW.md= — research flow to amend
+- =~/.claude/flows/IMPLEMENTATION-FLOW.md= — implementation flow to amend
+- =~/.claude/flows/CODE-QUALITY.md= — section heading standards to enforce
+
+** Acceptance Criteria
+1. Every finalized artifact has valid denote front matter (=#+title:=,
+   =#+filetags:=, =#+identifier:=, =#+signature:=)
+2. =denote-query= script exists at =~/.claude/flows/denote-query= with
+   metadata subcommands (index, status, signature, deferred, overlap,
+   backlinks, tags, statuses) and section extraction subcommands (goals,
+   constraints, deferred-items, summary)
+3. Script is recursive by default, supports =--root-only=, outputs in
+   table/tsv/paths formats
+4. Convergence gate runs at every flow init and writes a persistent
+   =** Convergence= section in the design/research doc
+5. Convergence gate extensions (S2 deferred work, S5 dismissed
+   reconsideration) run by default as part of the gate
+6. Status transitions happen automatically at flow boundaries (init →
+   active via working dir; finalize → terminal state in filetags)
+7. Supersession is automatic: old artifact updated with =:superseded:=
+   tag and link to successor, chat notice emitted
+8. =#+deferred:= field with org-style tags is populated at finalize
+   from Known Deferred Work section
+9. =.research.org= suffix is replaced by =__researched_research= (or
+   equivalent denote keyword naming)
+10. All existing 35 artifacts are migrated with front matter
+    (identifiers from mtime)
+11. A =~/.claude/flows/DENOTE.md= file contains all denote-specific
+    flow amendments, referenced by each flow file
+12. Synthesis goals (S1-S6) are available as explicit standalone
+    commands and produce file artifacts within a flow context
+13. Domain keywords are inferred (open tag system)
+
+** Design
+
+*** Overview
+
+Three deliverables:
+1. =~/.claude/flows/DENOTE.md= — behavior specification referenced by all flows
+2. =~/.claude/flows/denote-query= — bash/AWK script (executable)
+3. One-line amendments to each flow file + migration of existing artifacts
+
+*** 1. DENOTE.md — Specification Structure
+
+The file is organized into sections that mirror the flow lifecycle.
+Each flow file adds a single line at the top: "Also read and apply
+=DENOTE.md= in this directory." DENOTE.md is self-contained — it
+does not reference individual flow files. It has implicit coupling
+to flow-defined section names (=** Goal=, =** Constraints=, etc.) —
+if a flow changes a heading name, DENOTE.md extraction must be
+updated. This coupling is documented, not eliminated.
+
+**** 1.1 Opt-Out Mechanism
+
+#+begin_example
+## Activation
+
+Denote metadata behavior is **active by default** for all flows.
+A project opts out by adding to its CLAUDE.md:
+
+    denote: disabled
+
+When disabled, all denote behavior (front matter, convergence gate,
+status transitions, denote-query usage) is skipped. Flows run exactly
+as before denote was introduced.
+#+end_example
+
+**** 1.2 Front Matter Schema
+
+Every artifact created by a flow gets this front matter block
+inserted after all =#+= configuration lines (=#+STARTUP:=, =#+TOC:=)
+and before the first =*= heading:
+
+#+begin_example
+#+title:      <Human-readable title>
+#+filetags:   :<type>:<status>:<domain-keywords>:
+#+identifier: <YYYYMMDDThhmmss from current time>
+#+signature:  <issue-ID or empty>
+#+deferred:   <org-style tags of deferred item slugs, or empty>
+#+end_example
+
+Rules:
+- =#+title:= reproduces the first heading text (e.g., =[15987] Operation Pool=)
+- =#+identifier:= is generated once at creation and never changes
+- =#+signature:= is inferred from the title's =[ID]= prefix if present,
+  or left empty for exploratory work
+- =#+filetags:= always contains exactly one type tag and one status tag;
+  domain keywords are added by Claude based on the Goal section content
+- =#+deferred:= is an empty string at creation (=#+deferred:= with
+  nothing after it). Populated at finalize from Known Deferred Work.
+  Slugification: lowercase, hyphens for spaces, strip parenthetical
+  notes and punctuation. E.g., "*Memory recycling (RSS-based)*" →
+  =memory-recycling=. Only the primary item name is slugified.
+
+**** 1.3 Naming Convention
+
+At creation, artifacts are named: =<slug>.org= (no suffix metadata).
+
+At finalize, artifacts are renamed to: =<slug>__<status>_<type>.org=
+
+Examples:
+- =operation-pool__implemented_design.org=
+- =operation-pool-reuse__researched_research.org=
+- =resource-scaling/ams-image-final-scaling__implemented_sub-feature.org=
+
+The rename is performed by Claude using =mv= + updating the
+=#+filetags:= line. All references to the old filename in =designs/=
+are updated (=[[file:]]= links, =code= markup, and plain text paths).
+
+Rename + reference update procedure:
+1. =mv= old name to new name
+2. Grep all =.org= files in =designs/= for old filename string
+3. Replace all occurrences (all reference formats, not just =[[file:]]=)
+4. Verify: grep for old filename again; if any remain, report them
+5. Scope: =designs/= only. References in flow files or CLAUDE.md are
+   NOT auto-updated (they reference patterns, not specific files)
+
+Recovery: =denote-query fix-names= re-derives filename suffixes from
+front matter and fixes stale cross-references.
+
+Slugs must NOT contain double underscores (=__=) — use a single
+hyphen instead.
+
+During active work (working directory exists), the file keeps its
+plain =<slug>.org= name. The suffix is added only at finalize.
+
+**** 1.4 Status Transitions
+
+| Flow boundary    | Action                                               |
+|------------------+------------------------------------------------------|
+| =init=           | Create file with =#+filetags: :<type>::=             |
+|                  | (no status tag — working dir signals active)         |
+| =finalize= (design) | Rename file: add =__designed_<type>= suffix       |
+|                  | Update =#+filetags:= to include =:designed:=         |
+|                  | Populate =#+deferred:= from Known Deferred Work      |
+| =finalize= (impl)| Rename file: change =__designed_= to =__implemented_= |
+|                  | Update =#+filetags:=: =:designed:= → =:implemented:= |
+| =full=           | No direct action — triggers init, then design finalize,|
+|                  | then impl finalize. Status transitions happen at each |
+| =loop=           | No metadata change (iterating within a phase)        |
+| =resume=         | No metadata change (re-enters existing phase)        |
+| =commit=         | No metadata change (status already set at finalize)  |
+| Supersession     | Old file: add =:superseded:= to filetags, remove     |
+|                  | previous status tag, append supersession note         |
+|                  | New file: add old file to References section          |
+| Postpone/dismiss | User-triggered: update filetags + add reason to doc  |
+
+Research flow uses =:researched:= instead of =:designed:= at finalize.
+
+Ordering: working directory deletion (existing flow behavior) precedes
+all denote metadata steps (filetag update, deferred population, rename,
+reference update).
+
+Supersession guard: supersession is only allowed for finalized artifacts
+(no working directory). If a working directory exists, Claude warns the
+user and requires explicit confirmation. If confirmed, the working
+directory is deleted as part of supersession.
+
+**** 1.5 Convergence Gate
+
+Inserted into every flow's =init= step, after creating the artifact
+file and working directory, before the user fills in intake fields.
+
+#+begin_example
+## Convergence Gate (runs at init)
+
+1. Run `denote-query overlap "<init-argument>" --format tsv`
+   using the full init command argument (not just the derived slug)
+   to find artifacts with keyword overlap.
+2. Run `denote-query signature "<issue-id>" --format tsv`
+   (if an issue ID is known) for exact feature matches.
+3. Run `denote-query deferred --format tsv`
+   to surface all postponed/dismissed work.
+4. Run `denote-query deferred-items --structured --format tsv`
+   to get cross-referenceable deferred item names.
+5. For each candidate (union of steps 1-3, deduplicated by file path):
+   run `denote-query goals --files <candidates> --format tsv`
+   and assess semantic relevance. Step 4 produces deferred item names
+   (not file paths) — these are cross-referenced against the new
+   feature's description separately in the output.
+6. Write a `** Convergence` section in the design/research doc
+   with findings:
+
+   ** Convergence
+
+   *** Related artifacts
+   - [[file:<path>][<title>]] — <one-line relevance assessment>
+
+   *** Deferred work overlap
+   - <item> (from [[file:<path>]]) — <relevance to current feature>
+
+   *** Dismissed/postponed
+   - [[file:<path>][<title>]] — <why it was dismissed, whether
+     conditions have changed>
+
+   If no matches found, write:
+
+   ** Convergence
+   No related artifacts found.
+
+7. Report findings to the user as part of init output.
+8. Note in the section: "Re-run with `convergence` after populating
+   Goal for refined semantic results."
+#+end_example
+
+The =** Convergence= section is a *denote-layer section*: it appears
+only when denote is active (not when opt-out). Placement:
+- Design docs: after =** References=, before =** Acceptance Criteria=
+- Research docs: after =** Context=, before =** In Scope=
+- Reordered research docs (output-first): after =** Known Leads=
+  (last intake section before output sections)
+
+The gate runs only for root-level inits. Sub-feature inits skip the
+gate (the parent design already went through convergence).
+
+S2 and S5 are *gate-triggered* (separate =denote-query= calls), not
+gate-embedded — they can be tested and invoked independently.
+
+**** 1.6 Supersession Mechanics
+
+When Claude determines (during design or at user direction) that a
+new artifact supersedes an old one:
+
+1. Update old file's =#+filetags:=: replace status tag with =:superseded:=
+2. Append to old file (after Known Deferred Work):
+   =Superseded by [[file:<new-file>][<new-title>]] on <date>.=
+3. Add old file to new file's References section
+4. Rename old file to reflect =__superseded_<type>= suffix
+5. Update all references to old filename across =designs/= (same
+   procedure as finalize rename — grep all formats, not just =[[file:]]=)
+6. Emit chat notice: "Marked <old> as superseded by <new>."
+
+Supersession is only allowed for finalized artifacts. See section 1.4
+for the active-work guard.
+
+**** 1.7 =#+deferred:= Population
+
+At finalize, Claude reads the =** Known Deferred Work= section and
+extracts item names. Each item name is slugified (lowercase,
+hyphens for spaces, strip punctuation) and added as an org-style tag:
+
+#+begin_example
+** Known Deferred Work
+
+- *Memory recycling* — Track RSS, recycle after N ops.
+- *Pool shrinking* — Stop idle processes after inactivity.
+
+→ #+deferred: :memory-recycling:pool-shrinking:
+#+end_example
+
+=#+deferred:= is a cache of Known Deferred Work at finalize time. The
+=denote-query deferred-items= subcommand reads the section directly
+and is always fresh. The field enables fast metadata-only cross-
+referencing (S2) but is not the source of truth.
+
+**** 1.8 Section Heading Standards
+
+All flows MUST use these exact =**= headings in design artifacts:
+
+| Heading                  | Required in       |
+|--------------------------+-------------------|
+| =** Goal=                | design            |
+| =** Constraints=         | design            |
+| =** Preserved Invariants=| design (optional) |
+| =** References=          | both              |
+| =** Acceptance Criteria= | design            |
+| =** Design=              | design            |
+| =** Sub-features=        | design            |
+| =** Known Deferred Work= | design            |
+| =** Convergence=         | both (gate output)|
+| =** Question=            | research          |
+| =** Context=             | research          |
+| =** In Scope=            | research          |
+| =** Out of Scope=        | research          |
+| =** Evaluation Criteria= | research          |
+| =** Known Leads=         | research          |
+| =** Findings=            | research          |
+| =** Comparison=          | research          |
+| =** Recommendation=      | research          |
+| =** Decision=            | research          |
+| =** Open Questions=      | research          |
+
+Note: finalized research docs place intake headings (Question through
+Known Leads) under =** Appendix: Intake= as =***= subheadings. The
+=denote-query goals= extractor handles both =** Question= and
+=*** Question= under the appendix.
+
+The =denote-query= section extraction commands depend on these exact
+headings. Variations (=** Goals=, =** Problem=) are NOT supported.
+The AWK matcher is case-insensitive for =#+= keywords but
+case-sensitive for heading names.
+
+**** 1.9 Synthesis Commands
+
+Synthesis goals are standalone commands, NOT part of regular flows.
+Each is invoked explicitly and produces file artifacts within a
+research or design flow context.
+
+| Command                 | Goal | Behavior                                    |
+|-------------------------+------+---------------------------------------------|
+| =roadmap=               | S1   | List designed-not-implemented + researched-  |
+|                         |      | not-designed. Produces =designs/roadmap.org= |
+| =explore <area>=        | S4   | Curated reading list for an area. Produces   |
+|                         |      | =designs/<area>-exploration.org=             |
+| =stale-constraints=     | S3   | Cross-reference constraints vs recent impls. |
+|                         |      | Produces =designs/stale-constraints.org=     |
+| =next=                  | S6   | Topological next action. Produces            |
+|                         |      | =designs/next-actions.org=                   |
+
+S2 (deferred work synthesis) and S5 (dismissed reconsideration) are
+gate-triggered (see section 1.5) — not standalone commands.
+
+Synthesis outputs are ephemeral snapshots that do NOT participate in
+the denote system: no front matter, no filename suffixes, overwritten
+on subsequent runs, excluded from convergence gate scanning.
+
+*** 2. =denote-query= Script Specification
+
+**** 2.1 Architecture
+
+A single bash script with an AWK core. The AWK processes all =.org=
+files in one pass, scanning from line 1 until the first =*= heading
+(not a fixed line count) to extract front matter into a TSV index.
+Subcommands filter/transform this index.
+
+Location: =~/.claude/flows/denote-query=
+Permissions: executable (=chmod +x=)
+Dependencies: bash, awk, grep (standard POSIX)
+
+**** 2.2 Global Options
+
+| Option            | Default       | Purpose                          |
+|-------------------+---------------+----------------------------------|
+| =--dir <path>=    | =designs/=    | Root directory to scan           |
+| =--format <fmt>=  | =tsv=         | Output format: table, tsv, paths |
+| =--root-only=     | off           | Disable recursive traversal      |
+| =--max-lines <n>= | unlimited    | Truncate section output per file |
+| =--files <list>=  | all           | Newline-separated file paths     |
+|                   |               | (accepts stdin: =echo "a.org\nb.org" \| denote-query goals --files -=) |
+| =--no-header=     | off           | Suppress TSV header row          |
+
+**** 2.3 Core Index Builder (AWK)
+
+Processes all =*.org= files, scanning each until the first =*=
+heading. Extracts =#+title:=, =#+filetags:=, =#+identifier:=,
+=#+signature:=, =#+deferred:=. Outputs one TSV row per file.
+
+TSV format always emits a header row as the first line:
+=FILE\tTITLE\tFILETAGS\tIDENTIFIER\tSIGNATURE\tDEFERRED=
+
+Use =--no-header= to suppress for piping into other commands.
+
+Files without =#+identifier:= are non-conforming and skipped.
+
+**** 2.4 Metadata Subcommands
+
+| Subcommand        | Filter logic                                     |
+|-------------------+--------------------------------------------------|
+| =index=           | No filter — output full index                    |
+| =status <s>=      | =filetags= contains =:<s>:=                     |
+| =signature <id>=  | =signature= equals =<id>=                       |
+| =tag <t>=         | =filetags= contains =:<t>:=                     |
+| =deferred=        | =filetags= contains =:postponed:= or =:dismissed:= |
+| =overlap <words>= | Score: count of query words matching filename +  |
+|                   | title + filetags. Hyphens in filenames are split |
+|                   | into words. Threshold >= 2, top 10 results.      |
+|                   | Dynamic stopwords: words in >50% of titles excluded |
+| =backlinks <file>=| Grep all =.org= files for =<file>= in content   |
+| =tags=            | Unique tags across all filetags, with counts     |
+| =statuses=        | Count per terminal status value                  |
+| =signatures=      | Unique signatures with file counts               |
+| =validate=        | Check all files: fields present, valid type/status, |
+|                   | identifier format, filename suffix matches filetags |
+| =lint=            | Report non-standard =**= headings with fuzzy-match |
+|                   | suggestions (e.g., "=** Goals= → =** Goal=?")   |
+| =fix-names=       | Re-derive filename suffixes from front matter,   |
+|                   | fix stale cross-references                       |
+
+**** 2.5 Section Extraction Subcommands
+
+These use AWK to read between =** <Heading>= and the next =**=
+heading (or EOF). Output: =--- <filename> ---\n<section content>=
+per file.
+
+| Subcommand                      | Heading extracted           |
+|---------------------------------+-----------------------------|
+| =goals [--filter TAG]=          | =** Goal=, =** Question=, or     |
+|                                 | =*** Question= under =** Appendix= |
+| =constraints [--filter TAG]=    | =** Constraints=            |
+| =deferred-items=                | =** Known Deferred Work=    |
+| =deferred-items --structured=   | Bold item names only        |
+| =summary=                       | Title + first line of Goal  |
+
+The =--filter TAG= option pre-filters by filetag before extraction.
+
+*** 3. Flow Amendments
+
+**** 3.1 Reference Line
+
+Each flow file (=FULL-FLOW.md=, =DESIGN-FLOW.md=, =RESEARCH-FLOW.md=,
+=IMPLEMENTATION-FLOW.md=) gets a new section at the top, after the
+title line:
+
+#+begin_example
+## Denote Metadata System
+
+Read and apply `DENOTE.md` (in this directory) alongside this flow.
+DENOTE.md specifies: front matter schema, naming conventions, status
+transitions, convergence gate, section heading standards, and the
+`denote-query` script interface. DENOTE.md naming rules supersede
+naming patterns in this flow file (e.g., `.research.org` suffix is
+replaced by denote keyword naming). Denote behavior is mandatory
+unless the project's CLAUDE.md contains `denote: disabled`.
+#+end_example
+
+**** 3.2 Intake Template Update
+
+The intake template in each flow's documentation gains the front
+matter block (=#+title:=, =#+filetags:=, =#+identifier:=,
+=#+signature:=, =#+deferred:=) between =#+STARTUP: overview= and the
+first heading. DENOTE.md specifies the exact format; the flow
+template shows it in place.
+
+**** 3.3 Finalize Step Update
+
+Each flow's finalize step gains a reference to DENOTE.md's status
+transition and rename rules. After existing finalize behavior
+(working directory deletion), the denote finalize steps run:
+1. Updates =#+filetags:= with terminal status
+2. Populates =#+deferred:= from Known Deferred Work
+3. Renames file to add =__status_type= suffix
+4. Updates all references to old filename in =designs/= (all formats)
+5. Verifies: greps for old filename; reports any stale references
+
+**** 3.4 CODE-QUALITY.md Update
+
+Add a section on heading standards referencing DENOTE.md's section
+1.8 (exact heading names).
+
+*** 4. Migration Procedure
+
+One-time migration of all existing artifacts in =designs/=.
+
+**** 4.1 Steps
+
+For each =.org= file in =designs/= (recursive):
+
+1. Read file, determine type using content-based inference:
+   - =*.research.org= → type =research=
+   - Files referenced from a parent's =** Sub-features= section →
+     type =sub-feature=
+   - Files with review/audit content (e.g., =*-review.org=) →
+     type =review=
+   - Supporting artifacts (repro cases, test plans) → type =supporting=
+   - All others → type =design=
+   Claude reads the first heading and Goal/Question section to
+   determine type. Uncertain assignments are flagged for user review.
+
+   Type vocabulary: =research=, =design=, =sub-feature=, =review=,
+   =supporting=.
+
+1b. Normalize headings: check =**= headings against the standard
+    list (section 1.8). Rename close matches (=** Goals= → =** Goal=).
+    Report headings that don't match any standard name.
+
+2. Determine status:
+   - Has a =-design/= working directory → no status tag (active)
+   - Is a =.research.org= without working dir → =researched=
+   - All other finalized docs → =implemented= (conservative default;
+     the user can correct specific files)
+   Flagged exceptions: review artifacts → =designed= (they document
+   analysis, not code). Parent docs with mixed sub-feature status
+   → flagged for user decision.
+
+3. Generate identifier from file mtime:
+   =date -d @$(stat -c '%Y' <file>) '+%Y%m%dT%H%M%S'=
+
+4. Extract signature from title's =[ID]= prefix if present
+
+5. Infer 1-3 domain keywords from filename and title
+
+6. Extract deferred item names from Known Deferred Work section
+
+7. Prepend front matter block after =#+STARTUP: overview=
+
+8. Rename file: add =__<status>_<type>= suffix (if finalized)
+   - =operation-pool.org= → =operation-pool__implemented_design.org=
+   - =operation-pool-reuse.research.org= →
+     =operation-pool-reuse__researched_research.org=
+
+9. Update all references to old filename across all =.org= files in
+   =designs/= (same broad-scope grep as finalize rename)
+
+Migration should be preceded by a git commit of the current state
+(even though designs/ is typically untracked) to enable =git checkout=
+recovery if the migration produces incorrect results.
+
+Note: some finalized docs reference deleted working directory files
+(e.g., research docs referencing =*-research/findings.org=). These
+are historical breadcrumbs and should be left as-is.
+
+**** 4.2 Verification
+
+After migration, run:
+- =denote-query validate= — all files have valid front matter
+- =denote-query lint= — no non-standard headings
+- =denote-query index= — all files appear, none skipped
+- =denote-query statuses= — status counts match expectations
+- =denote-query tags= — expected vocabulary, no unexpected tags
+
+*** 5. Acceptance Testing
+
+After implementation, verify end-to-end:
+
+1. =denote-query validate= passes on all migrated files (0 errors)
+2. =denote-query lint= passes on all migrated files (0 warnings)
+3. =denote-query index= returns all ~29 migrated files
+4. =denote-query status implemented= returns expected file set
+5. =denote-query overlap "operation pool"= returns relevant results
+   (operation-pool, operation-dispatch-queue, operation-pool-reuse)
+6. Run =init test-feature= on a test feature — verify convergence
+   gate produces a =** Convergence= section
+7. Run =finalize= on a test feature — verify rename, filetag update,
+   =#+deferred:= population, and reference update
+8. Test opt-out: add =denote: disabled= to CLAUDE.md, verify no
+   denote behavior triggers
+9. =denote-query fix-names= recovers from a manually broken rename
+
+** Sub-features
+
+** Known Deferred Work
+
+- *=#+summary:= field* — deferred until corpus reaches ~50 files.
+  Will add a one-line summary to front matter for faster convergence
+  screening.
+- *Subagent delegation for S6* — deferred until corpus reaches ~200
+  files. Will architect subagent prompts that call =denote-query=
+  subcommands for S6 (Topological Next Action).
+- *Vector embeddings* — deferred indefinitely. Only relevant if
+  corpus exceeds ~500 files and keyword search degrades.
+- *Synthesis command implementation (S3, S6)* — S1+S4 implemented
+  first; S3 (Constraint Archaeology) and S6 (Topological Next Action)
+  are phased later as the corpus and metadata system mature.

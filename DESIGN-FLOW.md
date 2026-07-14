@@ -1,5 +1,16 @@
 # Design Loop — Instructions for Claude
 
+## Denote Metadata System
+
+Read and apply `DENOTE.md` (in this directory) alongside this flow.
+DENOTE.md specifies: front matter schema, naming conventions, status
+transitions, convergence gate, section heading standards, and the
+`denote-query` script interface. DENOTE.md naming rules supersede
+naming patterns in this flow file. Denote behavior is mandatory
+unless the project's CLAUDE.md contains `denote: disabled`.
+
+---
+
 An iterative design process for features and sub-features. Every feature goes through the same loop before its design is consolidated into the main design document.
 
 ---
