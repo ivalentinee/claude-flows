@@ -1,0 +1,112 @@
+#+title:      Critic Review: Project Knowledge DB
+#+filetags:   :working:criticism:
+#+identifier: 20260714T161801
+
+* Findings
+
+** 1. [Critical] Option D is a kitchen-sink synthesis, not an independent option
+
+Option D is described as "Hybrid Atomic Notes + Compiled Views (Synthesis)" and
+explicitly claims to "combine the best elements" of A, B, and C. This is a
+textbook confirmation bias pattern: propose several options, declare each
+partially flawed, then synthesize a "best of all worlds" option that inherits
+only strengths. In reality, Option D also inherits /complexity/ from all three
+parents. The comparison matrix reinforces this: D gets "Yes" on nearly every
+criterion while other options get "No" or "Partial." A fair evaluation would
+show D getting "Medium+" on complexity (its own admission) and acknowledge that
+this complexity is a real cost, not just an asterisk.
+
+** 2. [Critical] Option F (Enhanced CLAUDE.md) was dismissed without serious evaluation
+
+The verdict for Option F is "Insufficient for stated goals, but useful as the
+schema layer." But the constraint analysis itself shows that a code project KB
+needs ~50-100 facts. An enhanced CLAUDE.md with structured org-mode sections
+could hold 50-100 facts in ~5K-10K tokens -- well within the context window,
+always loaded, zero tooling needed. The dismissal rests on "cannot serve as a
+general knowledge DB," but the user's goals do not include building a general
+knowledge DB. This is exactly the "scope creep into generality" the user should
+worry about.
+
+** 3. [Critical] The TTRPG and code-project use cases have fundamentally different requirements
+
+The research treats these as variations of the same problem, but they differ in
+scale (500+ interconnected entities vs. 50-100 discrete facts), relationship
+density (TTRPG needs typed graphs; code projects need tagged lists), authorship
+(TTRPG is human-written; code facts are AI-discovered), and query patterns
+(TTRPG needs embedded entity queries; code projects need "remind me of X").
+Option D tries to serve both and may over-engineer the code case while
+under-serving the TTRPG case.
+
+** 4. [Critical] Compiled views for prompt caching may be solving a non-problem
+
+The constraint analysis explicitly identifies anti-constraint A2: "Full-corpus
+content reads of small notes (50-100K tokens) do NOT exceed context window."
+If Claude can read all 500 knowledge notes at ~50-100K tokens, and the 1M
+context window has ~900K tokens of remaining budget, then compiled views for
+caching are an optimization without a measured bottleneck. The 4096-token
+minimum for Opus prompt caching is a real number, but the research never
+demonstrates that individual note reads are actually a performance problem. The
+compiled-views feature looks like architecture driven by an interesting
+technical fact rather than by an actual need.
+
+** 5. [Auto] The "staleness is the #1 failure mode" claim is over-applied
+
+Staleness is indeed a major problem for large, long-lived knowledge bases (the
+Zettelkasten and Karpathy sources are clear on this). But a 50-100 fact code KB
+with git-tracked changes and an AI that can verify facts against code on demand
+may not suffer from staleness in the same way a 2000-note personal wiki does.
+The research applies a finding from one scale to a different scale without
+adjusting.
+
+** 6. [Auto] Missing alternative: Claude Code's built-in memory with structured conventions
+
+The constraint analysis (Section F) identifies the boundary between memory and
+knowledge but dismisses memory as limited to "behavioral directives." However,
+Claude Code's memory system already supports arbitrary markdown files with an
+index. A structured approach -- e.g., =project_architecture.md=,
+=project_conventions.md=, =project_decisions.md= -- could serve as a knowledge
+DB with zero new tooling, auto-loading, and the same git-tracking. The research
+never evaluates "enhanced memory files" as a distinct option, only mentions it
+as a non-option because the format is YAML+Markdown. Format is changeable;
+architecture is not.
+
+** 7. [Auto] org-roam was dismissed without evaluation for the knowledge use case
+
+The journal mentions org-roam was "decided against for design artifacts" but the
+findings table (Section 1d) lists org-roam as having built-in graph view and
+id-based linking. For a TTRPG vault with typed entities and backlinks, org-roam
+is arguably a better fit than denote (which deliberately avoids maintaining a
+link database). The dismissal carries over from a previous decision about a
+different use case.
+
+** 8. [Auto] Scope creep: the three stated goals do not require a knowledge management system
+
+The user asked about (1) code-undiscoverable facts, (2) knowledge graph, and
+(3) AI context optimization. Goal 1 could be served by enhanced memory files.
+Goal 3 is shown by the constraint analysis to be a non-problem at projected
+scale. Only Goal 2 (knowledge graph) genuinely requires new infrastructure, and
+only for the TTRPG use case. The research has expanded from "how to persist
+50-100 code facts" into "design a general-purpose knowledge management
+platform" spanning six options, four research documents, and an Obsidian
+patterns survey.
+
+** 9. [Auto] The comparison matrix criteria are chosen to favor Option D
+
+The matrix includes "Compiled views for caching" as a criterion, which only
+Option D supports. It also includes "Scales to 1000+ notes," which is irrelevant
+for the code-project use case (50-100 facts) and only marginally relevant for
+the TTRPG use case (500 notes). If the criteria were instead "time to implement,"
+"ongoing maintenance burden," and "risk of abandonment," simpler options (A, F)
+would score much higher.
+
+** 10. [Auto] No evidence of abandonment risk assessment
+
+The research surveys failure modes of knowledge /systems/ (staleness, orphans,
+collector's fallacy) but never addresses the failure mode of the /project
+itself/: the user builds a sophisticated system, uses it for 2 months, and
+abandons it because the maintenance burden exceeds the value. Simpler systems
+(Option A, Option F) have lower abandonment risk precisely because they require
+less ongoing investment. The Karpathy model's key insight -- AI handles
+bookkeeping -- mitigates this, but the compiled-views layer, typed
+relationships, and lint operations all add maintenance surface area that the
+user must sustain.

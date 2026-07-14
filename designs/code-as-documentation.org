@@ -1,0 +1,33 @@
+#+STARTUP: overview
+#+title:      Code as Documentation: Self-Documenting Code Reviewer
+#+filetags:   :design:code-quality:documentation:review:
+#+identifier: 20260714T160000
+#+signature:
+#+deferred:
+* Code as Documentation: Self-Documenting Code Reviewer
+
+** Goal
+Add guidance to the code author flow and a dedicated code reviewer role
+that validates code is self-documenting — not through comments, but
+through naming, structure, and object design.
+
+Inspired by:
+- https://x.com/mokevnin/status/2076600794971836464
+- https://x.com/mattpocockuk/status/2076596585069174925
+
+The core claim: "code should be the ultimate documentation." This means
+a separate reviewer should check that code structure and naming make
+comments unnecessary, and that the author guide should suggest
+self-documenting patterns as a first choice.
+
+** Constraints
+
+** References
+
+** Acceptance Criteria
+
+** Design
+
+** Sub-features
+
+** Known Deferred Work

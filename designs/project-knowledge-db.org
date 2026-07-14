@@ -1,0 +1,356 @@
+#+STARTUP: overview
+#+TOC: headlines 2
+#+title:      Research: Denote System Applicability for General Project Knowledge DB
+#+filetags:   :research:denote:knowledge:zettelkasten:
+#+identifier: 20260714T154755
+#+signature:
+#+deferred:
+* Research: Denote System Applicability for General Project Knowledge DB
+
+** Recommendation
+
+The answer is *yes, with differentiation*. The denote system can serve
+as a general project knowledge DB, but the two primary use cases (code
+project facts vs. creative project knowledge graphs) have fundamentally
+different requirements and should be addressed separately.
+
+*** For Code Projects: Lightweight Knowledge Directory
+
+Goal 1 (code-undiscoverable facts) and Goal 3 (context optimization)
+are served by a simple extension:
+
+- A =knowledge/= directory alongside =designs/= with denote-named
+  org files containing atomic facts
+- Same front matter schema as design artifacts (=#+title:=,
+  =#+filetags:=, =#+identifier:=, =#+signature:=)
+- New type tag: =:fact:= for atomic knowledge entries
+- Queryable via existing =denote-query --dir knowledge/=
+- No typed relationships, no compiled views, no structure notes
+- Claude discovers facts during code investigation and persists them;
+  human adds facts that don't fit any design doc
+- Convergence gate extended to also scan =knowledge/= for related facts
+
+*Scale:* ~50-100 facts for a typical project. Full-corpus read is
+~5-10K tokens — trivial for the 1M context window. No optimization
+needed beyond =denote-query=.
+
+*Boundary with Claude Code memory:* Memory stores behavioral
+directives ("use E2E tests, not unit tests"). Knowledge stores
+factual content ("the operation pool cap is 40"). Memory is
+auto-loaded every session. Knowledge is queried on demand.
+
+*Abandonment risk:* Low. Adding 4 lines of front matter to a fact
+file is minimal overhead. =denote-query= already exists.
+
+*** For Creative Projects (TTRPG, Worldbuilding): Zettelkasten + denote-query
+
+Goal 2 (genuine knowledge graph) requires more infrastructure:
+
+- A dedicated =notes/= directory (or =knowledge/=) with subdirectories
+  by entity type (=characters/=, =atlas/=, =organizations/=, =lore/=,
+  =campaigns/=)
+- Extended front matter with domain-specific fields (=#+type:=,
+  =#+faction:=, =#+location:=, =#+status:=, =#+aliases:=)
+- Entity templates per type (NPC, location, faction, session)
+- Structure notes (tagged =:structure:=) defining compilation order
+  and narrative flow for document generation
+- Cross-linking via =[[denote:ID][Title]]= identifier-based links
+- Embedded =denote-query= calls in =#+begin_src shell= blocks for
+  semi-dynamic entity queries ("all NPCs in this location")
+- New =denote-query= subcommands: =table= (Dataview TABLE equivalent),
+  =orphans= (unlinked notes), =recent= (recently modified),
+  =count-by= (aggregation)
+
+*Authorship model:* Human-primary for lore and setting content. Claude
+reads, queries, compiles, and maintains cross-reference integrity.
+Claude does NOT author creative content unless asked.
+
+*Compilation:* Claude reads a structure note that defines the order,
+then reads all referenced entity notes, then weaves them into a
+final document. The structure note is the "table of contents" for
+compilation — a Zettelkasten pattern.
+
+*Abandonment risk:* Medium. Entity templates and structure notes
+require ongoing discipline. The Karpathy insight applies: AI should
+handle bookkeeping (orphan detection, stale metadata, missing links)
+while humans handle curation.
+
+*** For Context Optimization: Already Solved at Current Scale
+
+Goal 3 is a non-problem at projected scale. The constraint analysis
+shows:
+
+- 500 atomic notes: ~50-100K tokens for full content read (5-10% of
+  the 1M context window)
+- =denote-query= already provides two-stage filtering (metadata →
+  content) that reduces token usage by 90%+ for targeted queries
+- Compiled views for prompt caching are not needed — the per-file
+  overhead is negligible when reading via =denote-query= batch
+  extraction
+
+Compiled views become relevant only at 1000+ notes with large
+content per note. This is speculative and deferred.
+
+*** Design Dimensions Summary
+
+| Dimension        | Code Project KB          | Creative Project KB         |
+|------------------+--------------------------+-----------------------------|
+| Directory        | =knowledge/=             | =notes/= with subdirs       |
+| Front matter     | Standard 4 fields        | Extended (domain-specific)   |
+| Types            | =:fact:=                 | =:npc:location:faction:...=  |
+| Relationships    | Tags only                | Typed fields + ID links      |
+| Structure notes  | Not needed               | Essential for compilation    |
+| Templates        | Not needed               | Per-entity-type              |
+| denote-query     | Existing subcommands     | New: table, orphans, recent  |
+| Authorship       | Claude-primary           | Human-primary                |
+| Scale            | 50-100 facts             | 500+ notes                   |
+| Context budget   | ~5-10K tokens            | ~50-100K tokens              |
+| Compiled views   | No                       | No (at current scale)        |
+| Abandonment risk | Low                      | Medium                       |
+
+*** Confidence
+
+High for the code project KB (well-understood, minimal scope).
+Medium for the creative project KB (depends on user discipline for
+entity maintenance, but Obsidian community demonstrates viability).
+
+** Comparison
+
+*** The Two Use Cases Are Different Problems
+
+The Critic correctly identified that code-project KB and TTRPG KB
+should not be forced into one solution:
+
+| Aspect          | Code Project KB            | Creative Project KB           |
+|-----------------+----------------------------+-------------------------------|
+| Scale           | 50-100 discrete facts      | 500+ interconnected entities  |
+| Relationship    | Tagged lists               | Typed graphs (faction→NPC)    |
+| Authorship      | AI-discovered              | Human-written                 |
+| Query patterns  | "Remind me of X"           | "All NPCs in location Y"     |
+| Output          | Single fact retrieval      | Compiled documents            |
+| Maintenance     | Near-zero (atomic facts)   | Ongoing (entity updates)      |
+| Failure mode    | Stale facts (low impact)   | Orphan/stale entities (high)  |
+
+*** Options Evaluated
+
+6 options were identified. After Critic review:
+
+| Option | Name                    | Code KB | Creative KB | Verdict            |
+|--------+-------------------------+---------+-------------+--------------------|
+| A      | Pure Denote Extension   | Good    | Partial     | Baseline for code  |
+| B      | Karpathy Wiki Model     | Good    | Good        | Best maintenance   |
+| C      | Typed Knowledge Graph   | Over    | Good        | Best for creative  |
+| D      | Hybrid + Compiled Views | Over    | Over        | Over-engineered    |
+| E      | Mem0 Vector Memory      | Wrong   | Wrong       | Wrong paradigm     |
+| F      | Enhanced CLAUDE.md      | Viable  | No          | Too limited        |
+
+*Revised recommendation:*
+- Code projects: Option A (Pure Denote Extension) with Karpathy-
+  inspired lint from Option B
+- Creative projects: Option A + C (Denote base + typed relationships
+  from worldbuilding tools)
+- Option D's compiled views dropped (non-problem at scale)
+- Option F serves as the schema/convention layer (CLAUDE.md or
+  DENOTE.md defines the knowledge directory conventions)
+
+*** Discarded
+
+| Option | Reason                                               |
+|--------+------------------------------------------------------|
+| D      | Kitchen-sink synthesis; compiled views not needed     |
+| E      | External dependency, violates plain-text philosophy   |
+| F      | Too limited for creative KB; viable only as schema    |
+
+** Findings
+
+*** Zettelkasten Principles (applicable to both use cases)
+
+From the Zettelkasten tradition and modern implementations:
+
+- *Atomic notes:* Each note captures one idea/fact. This scales.
+- *Structure notes:* Index notes that organize related content into
+  a navigable structure. Essential for compilation and narrative flow.
+- *Explicit links carry meaning search cannot replicate:*
+  "Full-text search alone provides not enough material" (zettelkasten.de)
+- *Failure modes:* Collector's fallacy (gathering without connecting),
+  orphan notes, stale knowledge, over-reliance on search.
+- Tags for weak grouping, links for strong connections.
+
+*** Karpathy's LLM Wiki Model
+
+Three-layer architecture: raw sources → AI-maintained wiki → schema.
+Three operations: ingest (add knowledge), query (search+synthesize),
+lint (detect staleness, contradictions, orphans).
+
+Key insight: *AI handles bookkeeping, humans handle curation.* Schema
+quality determines system quality. Drift (stale cross-references) is
+the primary failure mode.
+
+Applicable to both use cases: lint operations (orphan detection, stale
+metadata flagging) are valuable regardless of KB type.
+
+*** Memex/Mimex Influence
+
+Vannevar Bush's 1945 memex concept: associative trails through a
+knowledge corpus, not hierarchical classification. Modern relevance:
+knowledge should be navigable by association (links, tags, related
+concepts), not by rigid folders alone.
+
+Applicable principle: directories for *type* (NPC, location, design),
+tags for *topic* (faction-X, region-Y). This matches the Obsidian
+community's converged pattern.
+
+*** Obsidian Patterns (for creative KB)
+
+Detailed in =obsidian-patterns.org=. Key transferable patterns:
+
+- *Entity templates:* Standardized front matter per entity type (NPC:
+  race, class, faction, location, status; Location: region, population,
+  government). Directly translatable to org front matter.
+- *Embedded queries:* Dataview queries inside notes that show related
+  entities. In denote: =#+begin_src shell= blocks calling =denote-query=.
+- *MOCs (Maps of Content):* Structure notes that curate navigation.
+  In denote: structure notes tagged =:structure:=.
+- *Session → entity workflow:* Write session recap, update entity
+  metadata, let queries surface current world state.
+- *Pain points:* Orphan notes, naming drift, stale metadata, link rot.
+  All mitigatable with =denote-query lint= and =denote-query orphans=.
+- *Graph View is decorative:* Community consensus is that backlinks and
+  search are more useful than visual graph navigation.
+
+Denote's filename convention is *more* AI-friendly than Obsidian's
+approach: metadata visible at the filesystem level without opening
+files.
+
+*** Existing Systems Audit
+
+Three existing knowledge systems are fragmented:
+
+| System      | Purpose            | Query mechanism     | Scope          |
+|-------------+--------------------+---------------------+----------------|
+| Memory      | Behavioral         | Auto-loaded         | Per-project    |
+| Denote      | Design lifecycle   | denote-query script | Per-project    |
+| CLAUDE.md   | Project setup      | Always in context   | Per-project    |
+
+The knowledge DB fills the gap: *factual content about the system
+or domain that doesn't fit design artifacts or behavioral memory.*
+
+*** Constraints
+
+*Hard:* filesystem-only tools, no Emacs/SQLite, AWK scanner needs
+schema extension for domain-specific fields, cross-directory
+=[[file:]]= links require =../= prefixes, no file locking.
+
+*Soft:* grep scales to ~2000-5000 notes, type/heading vocabularies
+need extension, no ordering mechanism (use structure notes), authorship
+tracking desirable.
+
+*Anti-constraints:* 500 notes fits grep performance, full-corpus reads
+fit context window, two-stage query pattern works as-is, separate
+directories don't prevent cross-linking.
+
+*** Critic Corrections
+
+4 Critical + 6 Auto concerns resolved:
+- Option D (kitchen-sink) dropped; split recommendation by use case
+- Option F rehabilitated for code KB analysis
+- TTRPG and code KB analyzed independently
+- Compiled views dropped (non-problem at scale)
+- Staleness concern downweighted for code KB
+- Enhanced memory evaluated as viable for Goal 1
+- Scope re-centered on the 3 stated goals
+- Abandonment risk assessed per recommendation
+
+** Open Questions
+
+1. *Knowledge directory naming:* =knowledge/= vs =notes/= vs =kb/=?
+   Should the name differ between code and creative projects?
+
+2. *denote-query --dir default:* Should the script support a =--dirs=
+   flag to scan multiple directories (=designs/= + =knowledge/=) in
+   one call? Or use =--dir .= to scan everything?
+
+3. *AWK scanner extension:* Should the AWK scanner be extended to
+   extract arbitrary =#+key:= fields (for TTRPG-specific metadata
+   like =#+faction:=, =#+location:=)? Or should domain-specific
+   fields be packed into filetags?
+
+4. *Lint trigger:* When should lint run? At every flow init (adds
+   latency)? As a standalone command? Periodically (daily/weekly)?
+
+5. *Memory ↔ knowledge migration:* Should existing memory entries
+   that contain factual knowledge (e.g., =project_scaling_bugs.md=)
+   be migrated to the knowledge DB? Or leave them where they are?
+
+6. *Creative KB as a separate design:* Should the TTRPG/creative KB
+   be a separate design flow artifact from the code KB? They share
+   =denote-query= but differ in everything else.
+
+7. *Entity template format:* Should entity templates (NPC, location,
+   etc.) be defined in =DENOTE.md= (the schema layer), in a separate
+   =TEMPLATES.md=, or as actual template files in the KB directory?
+
+-----
+
+/Appendix: intake sections follow./
+
+** Question
+Can the denote/denote-query system be extended to serve as a general
+project knowledge DB — covering code-undiscoverable facts, genuine
+knowledge graph handling (non-tree cross-linked documents), and Claude
+context optimization?
+
+** Context
+The denote metadata system (=DENOTE.md= + =denote-query= script) was
+designed for design artifact management (research, design, implementation
+lifecycle). The user wants to explore whether the same conventions and
+tooling can serve broader knowledge management needs across different
+project types, including non-code projects (e.g., TTRPG settings).
+
+Key influences: Zettelkasten (networked notes), Mimex (as inspiration,
+not strict methodology).
+
+** In Scope
+- Goal 1: Code-undiscoverable facts — facts about a system that don't
+  fit any design or research doc but should be discoverable. Both
+  user-known facts and Claude-discovered facts from deep code/doc
+  investigation. "Memorize once for further optimization."
+- Goal 2: Genuine knowledge graph — cross-linked, non-tree documents.
+  Use case: TTRPG setting (gods, religions, adventures, NPCs, locations)
+  where documents are entangled. Hybrid maintenance (manual + Claude).
+  Output: final descriptive documents and web pages (e.g., "all gods
+  and religions in my setting", "campaign adventure progression").
+  Sub-questions:
+  - Should knowledge DB have its own directory (=<project>/knowledge/=)
+    separate from =<project>/designs/=?
+  - Can the existing designs system be extended for seamless knowledge/
+    designs interlinking while keeping =denote-query= folder-scoped?
+- Goal 3: Claude context optimization — by introducing a proper file-
+  based knowledge DB with =denote-query=, can Claude's context window
+  usage be improved? Inspired by Karpathy's LLM OS/wiki concept
+  (https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
+  Key question: should an "LLM wiki" be the same system as a hybrid
+  human+AI knowledge DB, or should they be separate?
+
+** Out of Scope
+- Implementation changes to =denote-query= script (that's a subsequent
+  design task)
+- Specific TTRPG content or setting design
+- Code-as-documentation reviewer (tracked separately in
+  =code-as-documentation.org=)
+
+** Evaluation Criteria
+1. Generality — works for code projects AND non-code projects
+2. Denote compatibility — reuses existing conventions and tooling
+3. Graph expressiveness — handles genuine cross-linking, not just trees
+4. Hybrid maintenance — both human and Claude can create/edit/query
+5. Context efficiency — improves Claude's token usage vs. raw file reads
+6. Separation of concerns — knowledge DB doesn't pollute design artifacts
+
+** Known Leads
+- Zettelkasten methodology (web search)
+- Mimex (web search — as influence, not strict methodology)
+- Karpathy's LLM OS/wiki: https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f
+- Existing denote system: =~/.claude/flows/DENOTE.md=, =denote-query=
+- Existing design artifacts in =~/.claude/flows/designs/=
+- Claude Code memory system: =~/.claude/projects/*/memory/=

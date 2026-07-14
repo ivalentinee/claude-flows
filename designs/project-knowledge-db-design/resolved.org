@@ -1,0 +1,46 @@
+#+STARTUP: overview
+#+title:      Resolved Concerns: Project Knowledge DB
+#+filetags:   :working:resolved:
+#+identifier: 20260714T161806
+* Resolved Critic Concerns
+
+** CR-1 Option D is kitchen-sink → Split recommendation by use case :auto:
+
+Accepted. Option D tried to serve two fundamentally different problems
+with one solution. The synthesis will split into:
+- Code project KB: minimal approach (enhanced denote or structured files)
+- Creative project KB (TTRPG): Obsidian-inspired denote+denote-query
+  with typed relationships and structure notes
+
+** CR-2 Option F dismissed prematurely → Rehabilitated for code KB    :auto:
+
+Accepted. For ~50-100 code facts, a simple approach (structured files
+in knowledge/ with denote front matter, no compiled views, no typed
+relationships) is sufficient. The CLAUDE.md itself is too small for
+a KB, but a separate knowledge/ directory with simple denote files
+serves the same "always queryable" purpose via denote-query.
+
+** CR-3 TTRPG vs code conflated → Separate analysis                  :auto:
+
+Accepted. The synthesis will analyze each use case independently.
+The TTRPG KB needs: typed front matter fields, structure notes,
+embedded queries (denote-query table), entity templates.
+The code KB needs: tagged atomic facts, denote-query overlap for
+convergence, optional lint for staleness. Very different.
+
+** CR-4 Compiled views solve non-problem → Dropped                   :auto:
+
+Accepted. At projected scale (<500 notes, ~50-100K tokens total),
+full-corpus reads fit the context window. Compiled views are dropped
+from the recommendation. If scale grows past 1000+ notes, they can
+be revisited — but that's speculative, not a design requirement.
+
+** CR-5-10 Auto concerns → Addressed in synthesis                    :auto:
+
+- Staleness: downweighted for code KB (50-100 facts); kept for TTRPG
+- Enhanced memory: evaluated as viable for Goal 1
+- org-roam: noted as viable for TTRPG if user wants Emacs integration
+- Scope creep: synthesis re-centered on the 3 stated goals
+- Comparison matrix: rebuilt with "implementation effort" and
+  "abandonment risk" criteria
+- Abandonment risk: explicitly assessed per recommendation

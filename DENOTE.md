@@ -60,13 +60,14 @@ the first `*` heading:
 
 ### Type vocabulary
 
-| Type           | Meaning                |
-|----------------|------------------------|
-| `research`     | Research document       |
-| `design`       | Design document         |
-| `sub-feature`  | Sub-feature design      |
-| `review`       | Review/audit artifact   |
-| `supporting`   | Repro cases, test plans |
+| Type           | Meaning                            |
+|----------------|------------------------------------|
+| `research`     | Research document                   |
+| `design`       | Design document                     |
+| `sub-feature`  | Sub-feature design                  |
+| `review`       | Review/audit artifact               |
+| `supporting`   | Repro cases, test plans             |
+| `working`      | Ephemeral file in `-design/` dir    |
 
 ### Status vocabulary (terminal states only)
 
@@ -82,6 +83,39 @@ the first `*` heading:
 Active states (researching, designing, implementing) are already
 encoded by working directory existence and must NOT be duplicated in
 metadata.
+
+### Working directory files
+
+Files inside `-design/` working directories (questions.org,
+criticism.org, journal.org, findings.org, options.org, resolved.org,
+impl-plan.org, review.org, review-plan.org, review-notes.org, etc.)
+also receive denote front matter:
+
+```org
+#+title:      <Descriptive title>
+#+filetags:   :working:<role>:
+#+identifier: <YYYYMMDDThhmmss from creation time>
+```
+
+Rules:
+- `#+title:` describes the working file's purpose (e.g., "Critic
+  Concerns", "External Survey Findings", "Implementation Plan")
+- `#+filetags:` always includes `:working:` plus a role tag. Role
+  tags: `criticism`, `questions`, `resolved`, `journal`, `findings`,
+  `options`, `review`, `review-plan`, `review-notes`, `impl-plan`,
+  `boundary`, `critic-context`, `boundary-context`, `answers`
+- `#+identifier:` generated at creation, same format as root artifacts
+- No `#+signature:` or `#+deferred:` (not relevant for working files)
+- No filename suffix (working files keep their plain names; they are
+  deleted at finalize)
+
+Working files use free-form `**` headings — they are NOT subject to
+the section heading standards (section below). `denote-query lint`
+skips files tagged `:working:`.
+
+Working files ARE indexed by `denote-query` (they have `#+identifier:`).
+Filter them out with `denote-query tag working` or exclude them with
+AWK post-processing when querying only root artifacts.
 
 ---
 

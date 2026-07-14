@@ -1,0 +1,307 @@
+#+STARTUP: overview
+#+title:      Options Registry: Project Knowledge DB
+#+filetags:   :working:options:
+#+identifier: 20260714T161805
+* Options Registry: Denote-Style Project Knowledge DB
+** Surveyor: External Surveyor
+** Date: 2026-07-14
+
+** Option A: Pure Denote Extension (Minimal)
+
+*** Description
+
+Extend the existing denote file-naming scheme and AWK scanner to
+support additional note types (lore, fact, character, location,
+rule) alongside the existing design artifact types. Knowledge notes
+live in a sibling directory (=knowledge/=) to =designs/=. No new
+tooling; the same =denote-query= script handles both.
+
+*** Key Characteristics
+
+- Note types added to the existing type vocabulary
+- Front matter extended with optional =#+related:= field for typed links
+- Structure notes written manually as index org files
+- No AI maintenance --- human-curated only
+- Same grep/AWK query model
+
+*** External Evidence
+
+- Zettelkasten tradition: pure manual curation works for ~500-2000 notes
+- TIL pattern (Branchaud): 1820 notes in flat categories, no tooling
+- Denote philosophy: "plain text and should remain portable"
+
+*** Strengths
+
+- Zero new tooling or dependencies
+- Fully portable (grep + AWK)
+- Consistent with existing denote philosophy
+- Low cognitive overhead to adopt
+
+*** Weaknesses
+
+- No staleness detection (Karpathy's #1 failure mode)
+- No automatic backlinks or cross-reference maintenance
+- Structure notes must be manually maintained
+- No compiled views for AI context optimization
+- Scales poorly past ~500 notes without tooling
+
+*** Verdict: Viable baseline, insufficient for stated goals
+
+** Option B: Karpathy Wiki Model (AI-Maintained File KB)
+
+*** Description
+
+Implement Karpathy's three-layer architecture using denote-style
+files. Raw sources are the codebase and documents. The "wiki" layer
+is a collection of denote-named org files maintained by Claude.
+The "schema" layer is CLAUDE.md plus a knowledge schema file that
+defines note types, conventions, and maintenance workflows.
+
+*** Key Characteristics
+
+- Claude maintains the knowledge notes (ingest, update, lint)
+- Human reviews and approves changes via git diff
+- Three operations: ingest (add knowledge), query (search + synthesize),
+  lint (detect staleness, contradictions, orphans)
+- Notes carry provenance and staleness metadata
+- Structure notes auto-generated from atomic notes
+
+*** External Evidence
+
+- Karpathy gist: production-tested pattern, schema is the key document
+- Karpathy finding: "labor division --- AI handles bookkeeping, humans
+  handle curation"
+- Mem0 architecture: multi-level memory with temporal reasoning
+- GitHub Copilot pattern: trust curated instructions over dynamic search
+
+*** Strengths
+
+- Directly addresses staleness through lint operations
+- AI handles the maintenance burden that kills manual systems
+- Provenance tracking enables trust verification
+- Compatible with denote file naming
+- Human remains in the loop via git review
+
+*** Weaknesses
+
+- Requires careful schema design (Karpathy: "schema is everything")
+- Risk of AI-generated noise (notes that are technically correct but
+  not useful)
+- Git diffs for knowledge notes may be noisy
+- No mechanism for compiled views / context optimization
+- Unclear how to trigger lint (on every conversation? periodic?)
+
+*** Verdict: Strong model for the core problem, needs context optimization layer
+
+** Option C: Worldbuilding-Inspired Typed Knowledge Graph
+
+*** Description
+
+Adopt worldbuilding tool patterns (LegendKeeper, Obsidian Dataview)
+for project knowledge. Define explicit entity types with typed
+relationships. Each note has a =#+type:= field and can declare
+relationships via =#+relates-to:= with relationship qualifiers.
+An index generator compiles "entity pages" from atomic notes.
+
+*** Key Characteristics
+
+- Explicit entity types: person, system, convention, decision,
+  constraint, dependency, environment, process
+- Typed relationships: depends-on, part-of, supersedes, conflicts-with,
+  documented-in, authored-by
+- Dataview-like queries: "all constraints for system X" compiles from
+  atomic notes
+- Auto-linking: entity names auto-resolve to note files
+- Templates per entity type with standardized fields
+
+*** External Evidence
+
+- LegendKeeper: auto-linking across wiki pages creates emergent networks
+- Obsidian Dataview: SQL-like queries against frontmatter enable compiled views
+- GraphRAG: explicit relationships enable multi-hop reasoning
+- Gwern: filesystem-based tagging eliminates redundant metadata
+
+*** Strengths
+
+- Typed relationships enable precise queries ("what depends on X?")
+- Templates reduce cognitive overhead for note creation
+- Compiled views directly support AI context optimization
+- Explicit schema prevents drift toward unstructured sprawl
+- Multi-hop queries possible (A depends on B which conflicts with C)
+
+*** Weaknesses
+
+- Higher schema design burden upfront
+- Over-specification risk: rigid types may not fit all knowledge
+- Requires tooling beyond grep/AWK for relationship queries
+- Auto-linking requires entity name resolution logic
+- May be over-engineered for a software project vs a fictional world
+
+*** Verdict: Best model for relationship-rich knowledge, may be over-engineered
+
+** Option D: Hybrid Atomic Notes + Compiled Views (Synthesis)
+
+*** Description
+
+Combine the best elements: denote-style atomic files (Option A),
+AI maintenance (Option B), and lightweight typed relationships
+(Option C). Add a "compiled view" mechanism that bundles related
+notes into context-optimized documents for LLM consumption.
+
+*** Key Characteristics
+
+- Atomic notes with denote naming: =ID--title__tags.org=
+- Simple type system: =#+type:= with a small vocabulary
+- Lightweight relationships: =#+related:= field with ID references
+- AI-maintained structure notes and cross-reference integrity
+- Compiled views: scripts that bundle related notes into single
+  documents optimized for prompt caching (>=4096 tokens)
+- Lint operation detects staleness, orphans, and contradictions
+- Human reviews all changes via git
+
+*** External Evidence
+
+- Karpathy: AI maintenance + human curation is the sustainable model
+- Denote: file-based, portable, no database
+- TIL: atomic notes scale to 1800+ with minimal tooling
+- Prompt caching: compiled views must be >=4096 tokens for Opus
+- Zettelkasten: structure notes are essential for navigation at scale
+- Digital gardens: epistemic status (seedling/budding/evergreen) aids trust
+
+*** Strengths
+
+- Addresses all three stated goals:
+  1. Code-undiscoverable facts: atomic notes with human curation
+  2. Knowledge graph: typed relationships + structure notes
+  3. AI context optimization: compiled views for prompt caching
+- Minimal schema burden (small type vocabulary, optional relationships)
+- AI handles bookkeeping (Karpathy's key insight)
+- File-based, git-tracked, no database
+- Compiled views are generated artifacts, not source-of-truth
+- Lint operation prevents staleness (the #1 failure mode)
+
+*** Weaknesses
+
+- Requires building the compiled view generator
+- AI maintenance quality depends on schema quality
+- Two representations (atomic notes + compiled views) must stay in sync
+- Relationship types may need to evolve, requiring migration
+- More complex than pure denote (Option A)
+
+*** Verdict: Most complete solution, recommended if complexity is acceptable
+
+** Option E: Mem0-Style Vector Memory (External)
+
+*** Description
+
+Use an external memory system like Mem0 for AI-accessible project
+knowledge. Notes are stored in a vector database with entity linking,
+semantic search, and temporal reasoning. The LLM queries this
+database rather than reading files.
+
+*** Key Characteristics
+
+- Vector-based storage with entity extraction
+- Semantic search + BM25 hybrid retrieval
+- Three-tier memory: user, session, agent
+- Temporal reasoning (current state vs past)
+- Additive-only memory (no overwrites)
+- External service dependency
+
+*** External Evidence
+
+- Mem0: 92.5 on LoCoMo benchmarks, production-tested
+- GraphRAG: knowledge graphs from documents via LLM extraction
+- Kotaemon: hybrid RAG pipeline with graph options
+
+*** Strengths
+
+- Sophisticated retrieval (semantic + keyword + entity)
+- Temporal reasoning handles evolving knowledge
+- Production-tested algorithms
+- Handles scale well (thousands of memories)
+
+*** Weaknesses
+
+- External dependency (not file-based, not git-tracked)
+- Not human-readable without tooling
+- Opaque --- cannot review knowledge via git diff
+- Does not integrate with denote ecosystem
+- Requires running a service
+- Vendor lock-in risk
+- Violates the local-first, plain-text philosophy
+
+*** Verdict: Wrong paradigm for this project's philosophy
+
+** Option F: Enhanced CLAUDE.md (Single-File Evolution)
+
+*** Description
+
+Instead of a multi-file knowledge base, evolve CLAUDE.md into a
+more structured single document with sections for architecture,
+conventions, decisions, constraints, and relationships. Use
+org-mode headings and properties for structure.
+
+*** Key Characteristics
+
+- Single file, always fully loaded into context
+- Structured sections with org-mode properties
+- Human-maintained, AI-queried
+- No linking needed (everything in one file)
+- No tooling needed
+
+*** External Evidence
+
+- GitHub Copilot: single .github/copilot-instructions.md
+- Cursor: single .cursorrules file
+- Current Claude Code: CLAUDE.md works for basic context
+
+*** Strengths
+
+- Simplest possible approach
+- Always in context (no retrieval needed)
+- No tooling, no sync issues
+- Industry standard pattern
+
+*** Weaknesses
+
+- Does not scale past ~100KB (context window pressure)
+- Cannot represent knowledge graph relationships
+- Single file becomes unwieldy for rich knowledge
+- No epistemic status or staleness tracking
+- No compiled views
+- Cannot serve as a general knowledge DB
+- Already the status quo --- the research question asks whether
+  to go beyond this
+
+*** Verdict: Insufficient for stated goals, but useful as the schema layer
+
+** Comparison Matrix
+
+| Criterion                    | A: Pure   | B: Karpathy | C: Typed  | D: Hybrid | E: Mem0 | F: Single |
+|------------------------------+-----------+-------------+-----------+-----------+---------+-----------|
+| Code-undiscoverable facts    | Partial   | Yes         | Yes       | Yes       | Yes     | Partial   |
+| Knowledge graph              | No        | Partial     | Yes       | Yes       | Partial | No        |
+| AI context optimization      | No        | No          | Partial   | Yes       | N/A     | Partial   |
+| File-based / git-tracked     | Yes       | Yes         | Yes       | Yes       | No      | Yes       |
+| AI maintenance               | No        | Yes         | Optional  | Yes       | Yes     | No        |
+| Staleness detection          | No        | Yes (lint)  | No        | Yes       | Yes     | No        |
+| Complexity                   | Low       | Medium      | High      | Medium+   | High    | Minimal   |
+| Portable                     | Yes       | Yes         | Partial   | Yes       | No      | Yes       |
+| Scales to 1000+ notes        | Marginal  | Yes         | Yes       | Yes       | Yes     | No        |
+| Compiled views for caching   | No        | No          | Partial   | Yes       | N/A     | N/A       |
+
+** Recommendation
+
+Option D (Hybrid Atomic Notes + Compiled Views) is the recommended
+approach. It synthesizes the strongest patterns from external research:
+
+1. From Zettelkasten: atomic notes, structure notes, tags
+2. From Karpathy: AI maintenance, lint operations, schema-driven
+3. From worldbuilding tools: lightweight typed relationships
+4. From prompt caching: compiled views optimized for context windows
+5. From denote: file-based, portable, naming conventions
+6. From digital gardens: epistemic status markers
+
+Option F (Enhanced CLAUDE.md) should be used as the schema layer
+within Option D, not as a standalone solution.

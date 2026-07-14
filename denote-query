@@ -306,7 +306,7 @@ case "$SUBCMD" in
         ;;
     validate)
         local_statuses="researched designed implemented postponed dismissed superseded"
-        local_types="research design sub-feature review supporting"
+        local_types="research design sub-feature review supporting working"
         build_index | awk -F'\t' -v statuses="$local_statuses" -v types="$local_types" '
         BEGIN {
             split(statuses, sl, " "); for (i in sl) valid_status[sl[i]] = 1
@@ -334,9 +334,16 @@ case "$SUBCMD" in
         ;;
     lint)
         local_headings="Goal|Question|Context|Constraints|Preserved Invariants|References|Acceptance Criteria|Design|Sub-features|Known Deferred Work|Convergence|In Scope|Out of Scope|Evaluation Criteria|Known Leads|Findings|Comparison|Recommendation|Decision|Open Questions|Appendix: Intake"
+        # Skip :working: files (they use free-form headings)
         files=$(find_files)
         [[ -z "$files" ]] && exit 0
-        echo "$files" | xargs awk -v headings="$local_headings" '
+        non_working=$(echo "$files" | while read -r f; do
+            if ! head -20 "$f" 2>/dev/null | grep -qi '#+filetags:.*:working:'; then
+                echo "$f"
+            fi
+        done)
+        [[ -z "$non_working" ]] && exit 0
+        echo "$non_working" | xargs awk -v headings="$local_headings" '
         BEGIN { split(headings, hl, "|"); for (i in hl) standard[hl[i]] = 1 }
         /^\*\* / {
             h = $0; sub(/^\*\* +/, "", h)
