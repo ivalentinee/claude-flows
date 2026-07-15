@@ -1,0 +1,548 @@
+#+STARTUP: overview
+#+TOC: headlines 3
+#+title:      Research: Persisting Fix Patterns from Code Review
+#+date:       [2026-07-15 Tue 09:10]
+#+filetags:   :research:researched:review:patterns:knowledge:memory:
+#+identifier: 20260715T091056
+#+signature:
+#+deferred:
+* Research: Persisting Fix Patterns from Code Review
+
+** Recommendation
+
+Fix patterns learned during code review SHOULD be persisted, using a
+*dual-destination strategy* that routes each pattern to the system best
+suited for its structure:
+
+1. *Simple behavioral directives* go to Claude Code memory (the
+   existing system). Example: "In this codebase, always use individual
+   alias declarations, not grouped syntax."
+
+2. *Structured patterns with before/after examples* go to the
+   project-specific conventions section of the memory file, which
+   already exists (=feedback_code_principles.md=). This file already
+   captures exactly this kind of knowledge.
+
+3. *Patterns that describe system facts* (not behavioral directives)
+   go to =notes/= as =:fact:= entries. Example: "AMQP message payloads
+   in this project always use camelCase keys" -- this is a system fact,
+   not a directive.
+
+Neither a new =:pattern:= type tag nor a separate pattern catalog is
+recommended. The existing two-bucket system (memory for behavior, notes
+for facts) already covers the space. What's missing is not a new
+destination but a *capture trigger* -- Claude should be explicitly
+instructed to evaluate review corrections for persistence at the end
+of each review loop.
+
+*** Confidence
+
+High. The recommendation aligns with the existing memory/knowledge
+boundary, requires no new infrastructure, and is validated by external
+industry practice (Cursor Bugbot, Elementor's self-learning review,
+coding.md movement).
+
+*** Key insight
+
+The user's existing =feedback_code_principles.md= file IS the fix
+pattern catalog. It already contains before/after examples, rationale,
+and project-specific conventions -- all learned from review corrections.
+The question is not "should we build a new system?" but "should we
+formalize the capture trigger so patterns don't get lost?"
+
+** Comparison
+
+*** Option A: Record as =:fact:= notes only
+
+Patterns go to =notes/= with =:fact:= type tag.
+
+Pros: Queryable via =denote-query=, passes three-gate framework,
+consistent with the existing knowledge DB design.
+
+Cons: Facts are meant for "what IS true about the system," not "what
+you SHOULD do." A pattern like "use {:error, reason} tuples, not
+exceptions" is prescriptive, not descriptive. Facts are queried on
+demand, not auto-loaded -- Claude might not query at the right time.
+
+*** Option B: Record as memory directives only
+
+Patterns go to Claude Code memory as behavioral directives.
+
+Pros: Auto-loaded every session. Simple imperative format matches how
+corrections feel ("always do X, not Y"). Already demonstrated by the
+existing =feedback_code_principles.md= file.
+
+Cons: Memory is unstructured -- no query mechanism, no front matter,
+no convergence gate integration. Complex patterns (before/after code
+examples, multi-step rationale) are awkward in memory's flat format.
+Memory should stay concise; pattern accumulation risks the "lost in
+the middle" effect.
+
+*** Option C: Both memory AND notes
+
+Every fix pattern is recorded in both systems.
+
+Pros: Belt-and-suspenders coverage.
+
+Cons: Duplication. Staleness risk doubles -- a change needs updating
+in two places. Violates the clean memory/knowledge boundary.
+
+*** Option D: Route by pattern type (RECOMMENDED)
+
+Each fix pattern is routed to the single best destination based on its
+nature:
+
+| Pattern type           | Destination                      | Example                             |
+|------------------------+----------------------------------+-------------------------------------|
+| Simple imperative      | Memory (auto)                    | "Never use grouped alias syntax"    |
+| Structured convention  | Memory (code_principles file)    | "ETS: use :ets.take/2, not lookup   |
+|                        |                                  | then delete" (with code example)    |
+| System fact            | =notes/= as =:fact:=            | "All AMQP payloads use camelCase"   |
+| Universal principle    | CODE-QUALITY.md (after proving   | "Prefer meaningful verbs for        |
+|                        | generality across projects)      | function names, not noun desc."     |
+
+This uses existing infrastructure. The routing decision uses the same
+heuristic as the existing memory/knowledge boundary: imperatives go to
+memory, facts go to notes.
+
+*** Option E: New =:pattern:= type in notes
+
+Create a new denote type tag =:pattern:= distinct from =:fact:=, with
+a structured template (Before, After, Rationale, When-to-apply).
+
+Pros: Clean separation from atomic facts. Structured format aids
+retrieval.
+
+Cons: Over-engineers the problem. The existing =feedback_code_principles.md=
+already serves this purpose with less ceremony. Adds a new type to the
+denote vocabulary for something that has ~5-15 entries per project.
+The structure would need to be loaded into context at implementation
+time, duplicating what memory already provides.
+
+*** Discarded
+
+| Option | Reason                                                      |
+|--------+-------------------------------------------------------------|
+| A      | Prescriptive patterns are not pure facts                    |
+| C      | Duplication violates clean boundary                         |
+| E      | Over-engineers; existing files already serve the purpose    |
+
+** Findings
+
+*** 1. External research: AI tools that learn from code review
+
+**** 1.1 Cursor Bugbot's self-improving learned rules
+
+Cursor's Bugbot (code review agent) is the most advanced production
+system for persisting review patterns. Since launching learned rules
+in beta, over 110,000 repos have enabled learning, generating over
+44,000 learned rules.
+
+How it works:
+- Bugbot reviews PRs and records reactions/comments from human reviewers
+- Negative signal (developer dismisses a finding) demotes a candidate rule
+- Positive signal (developer acts on a finding) promotes it
+- Rules that accumulate enough signal become "active" and influence
+  future reviews
+- Rules that generate consistent negative signal are disabled
+
+Key design decisions:
+- Rules are capped at 120 lines total to prevent noise
+- Each rule answers WHAT (specific action), HOW (exact syntax), and
+  WHY (brief rationale)
+- The system continuously refines rules based on real-world performance
+- Resolution rate improved from 52% to nearly 80% after learning was
+  introduced
+
+Source: [[https://cursor.com/blog/bugbot-learning][Bugbot now self-improves with learned rules]]
+
+**** 1.2 Elementor's self-learning code review system
+
+Elementor published a detailed account of building a self-learning
+code review system with Cursor. Their approach:
+
+- Review comments that flag issues the AI missed are processed into
+  candidate rules
+- Rules must be specific: "Use import { Icon } from '@libs/ui' --
+  never lucide-react directly. Our wrapper handles sizing/theming."
+- Bad rule example: "Use proper components" (too vague for an AI to act on)
+- Rules are capped at 120 lines to keep the file useful
+- The system distinguishes between static rules and evolving team
+  knowledge
+
+Key insight: "Rules are static while teams evolve continuously. Weekly
+comments like 'use our Icon wrapper, not lucide-react' or 'we don't
+need useMemo anymore' represent real team knowledge" that needs capture.
+
+Source: [[https://medium.com/elementor-engineers/the-self-learning-code-review-teaching-ai-cursor-to-learn-from-human-feedback-454df64c98cc][The Self-Learning Code Review (Elementor Engineers)]]
+
+**** 1.3 Windsurf's autonomous memory
+
+Windsurf's "Memories" feature autonomously analyzes a codebase over
+~48 hours, learning architecture, naming conventions, libraries, and
+coding style. This context persists across sessions. However, this is
+a *discovery* system, not a *correction* system -- it learns from the
+code as-is, not from human feedback on generated code.
+
+**** 1.4 Martin Fowler's knowledge priming pattern
+
+Fowler's "Patterns for Reducing Friction in AI-Assisted Development"
+(February 2026) identifies knowledge priming as a core pattern:
+sharing curated project context with AI before asking it to generate
+code. The failure mode: AI defaults to generic patterns because it
+lacks project-specific context. The fix: prime with explicit context
+(which is exactly what fix patterns provide).
+
+Source: [[https://martinfowler.com/articles/reduce-friction-ai/knowledge-priming.html][Knowledge Priming (Martin Fowler)]]
+
+*** 2. Industry patterns for convention capture
+
+**** 2.1 The coding.md movement
+
+The coding.md approach (mid-2025 onward) puts coding standards in
+versioned markdown files alongside source code. Key principles:
+
+- Every standard includes a "do this" and "not this" code snippet
+- Standards are living documents: quarterly reviews remove outdated
+  rules, add patterns from incidents, evolve with the stack
+- 30 minutes documenting a convention saves hours of review discussions
+  and AI-generated rework
+- Standards should be embedded in three places: CONTRIBUTING.md, PR
+  templates, and AI assistant instruction files
+
+The important insight: the lifecycle of a convention is *discovered in
+review -> documented in standards -> enforced by tooling -> eventually
+automated as a lint rule*. Fix pattern capture is step 1 of this
+lifecycle.
+
+Source: [[https://coding.md/][Coding.md - Standards as Living Code]]
+
+**** 2.2 Google's code review knowledge transfer
+
+Google's engineering practices guide identifies knowledge transfer as
+a primary goal of code review -- equal in importance to defect
+detection. Reviews are a natural enforcement mechanism for team
+conventions and architectural decisions. The implication: review
+corrections are a high-signal source of convention knowledge.
+
+**** 2.3 Context rot and stale rules
+
+A 2026 paper on "context rot" in AI configuration artifacts found
+stale code element references in 23% of 356 surveyed repositories.
+The decay is not uniform -- some rules stay valid for years, others
+become obsolete in weeks. Without a maintenance process, there is no
+way to distinguish accurate from stale.
+
+Prevention: treat context files as load-bearing artifacts. Agents
+trust documentation absolutely; out-of-date specs cause silent
+failures. Ownership and review dates prevent context from silently
+rotting.
+
+Source: [[https://arxiv.org/pdf/2606.09090][Context Rot in AI-Assisted Software Development (arxiv)]]
+
+**** 2.4 Automated lint rule evolution from review feedback
+
+A 2026 paper on "automated linter configuration via DSL-based LLM
+compilation of coding standards" demonstrates the full lifecycle:
+review feedback -> documented standard -> automated lint rule. The
+continuous feedback loop: user interactions provide data for rule
+evaluation, evaluation results guide refinements, refined rules
+generate new feedback.
+
+Source: [[https://arxiv.org/pdf/2602.07783][Automated Linter Configuration via DSL-Based LLM Compilation]]
+
+*** 3. The boundary question: where do fix patterns fit?
+
+**** 3.1 Current system map
+
+| System               | Content type        | Loading      | Format           |
+|----------------------+---------------------+--------------+------------------|
+| Claude Code memory   | Behavioral          | Auto-loaded  | Markdown, flat   |
+| =notes/= (=:fact:=) | Factual             | On-demand    | Org, denote      |
+| CODE-QUALITY.md      | Universal principles | Auto-loaded  | Markdown, rules  |
+| CLAUDE.md            | Project config       | Auto-loaded  | Markdown         |
+
+**** 3.2 Fix pattern characteristics
+
+Fix patterns are:
+- *Prescriptive* (like memory): "do X, not Y"
+- *Project-specific* (unlike CODE-QUALITY.md): "in THIS codebase..."
+- *Structured* (unlike simple memory): have before/after, rationale
+- *Discovered in review* (like memory): user corrects Claude's output
+- *Stable* (like facts): project conventions change slowly
+- *Reusable* (unlike debugging ephemera): apply to future implementations
+
+**** 3.3 Analysis: fix patterns are behavioral directives with structure
+
+Fix patterns are fundamentally behavioral directives -- they tell
+Claude how to act in future implementations. This places them in the
+*memory* bucket, not the *notes/facts* bucket. The memory/knowledge
+boundary from the project notes design is:
+
+#+begin_quote
+Imperatives ("use X", "prefer Y") -> Claude Code memory.
+Facts about the system ("pool cap is 40") -> =notes/=.
+#+end_quote
+
+"Use {:error, reason} tuples, not exceptions for MQ error handling"
+is an imperative. It goes to memory.
+
+However, some review corrections reveal *facts about the system* that
+are not behavioral directives. "All AMQP message payloads in this
+project use camelCase keys" is a fact -- it describes what IS, not
+what Claude SHOULD DO. These go to =notes/=.
+
+**** 3.4 The existing pattern catalog: =feedback_code_principles.md=
+
+The user's existing memory file =feedback_code_principles.md= already
+IS a fix pattern catalog. It contains:
+
+- Before/after examples: =:ets.take/2= over lookup-then-delete
+- Rationale: "single atomic operation; cleaner than two separate calls"
+- When-to-apply context: "Elixir schema fields use snake_case with
+  =source:= DB mapping"
+- Structured sections: Elixir Idioms, Test Conventions, Review Workflow
+
+This file was created organically from review corrections. The only
+thing missing is a *systematic capture trigger* -- currently, patterns
+are captured ad hoc (when the user or Claude remembers to update the
+file).
+
+**** 3.5 Promotion lifecycle
+
+A fix pattern may evolve over time:
+
+1. *Discovered*: user corrects Claude's code during review
+2. *Captured*: recorded in memory (=feedback_code_principles.md=) or
+   =notes/= (if factual)
+3. *Validated*: pattern proves useful across multiple implementations
+4. *Promoted*: if the pattern proves universal (not just project-
+   specific), it migrates to CODE-QUALITY.md
+5. *Automated*: ideally, the pattern becomes a linter rule or type
+   constraint, removing the need for the memory entry entirely
+
+This lifecycle matches the coding.md movement's observation: the
+convention lifecycle is "discovered -> documented -> enforced ->
+automated."
+
+*** 4. Three-gate framework applicability
+
+**** Gate 1: Novelty
+
+A fix pattern discovered in review passes the novelty gate by
+definition -- it was just discovered because Claude did NOT know it.
+If it were already documented, Claude would not have made the mistake.
+
+Score: PASSES.
+
+**** Gate 2: Stability
+
+Project coding conventions are highly stable. Conventions like "use
+individual aliases, not grouped syntax" persist for the lifetime of
+the project. The main staleness risk is when a dependency upgrade
+changes best practices (e.g., a new library API).
+
+Score: PASSES for most patterns. The stability gate would only reject
+patterns tied to temporary workarounds or deprecated APIs.
+
+**** Gate 3: Retrieval cost
+
+This is where the routing decision matters:
+
+- *Simple directives* ("always use individual aliases"): Memory handles
+  these perfectly. Auto-loaded, no query needed. Retrieval cost is
+  zero because memory is always in context. The three-gate framework
+  says NOT to record in =notes/= because memory already serves the
+  need (Gate 1: "behavioral directive -> memory instead").
+
+- *Structured patterns with code examples*: Memory also handles these --
+  the =feedback_code_principles.md= file is auto-loaded and can
+  include code snippets. For patterns that are complex enough to need
+  before/after examples, the memory file is actually BETTER than
+  =notes/= because it's auto-loaded.
+
+- *System facts revealed by the correction*: These DO belong in
+  =notes/=. If the correction reveals "all AMQP payloads use
+  camelCase keys," that's a system fact with high retrieval cost
+  (requires reading multiple message handler files to discover).
+
+Score: PASSES for the factual component. The behavioral component is
+already served by memory (existing system).
+
+*** 5. Risk analysis
+
+**** 5.1 Pattern accumulation bloat
+
+Risk: =feedback_code_principles.md= grows without bound, eventually
+exceeding the effective context window attention threshold.
+
+Mitigation: Follow the 120-line cap used by Cursor Bugbot and
+Elementor. When the file approaches this threshold, review and cull
+patterns that have been internalized into the codebase (e.g., patterns
+now enforced by type constraints or linter rules).
+
+**** 5.2 Context rot / stale patterns
+
+Risk: a captured pattern becomes incorrect after a codebase change
+(e.g., a library upgrade changes the recommended API).
+
+Mitigation: periodic review (quarterly, as coding.md recommends).
+The Context Maintenance subagent in Step 14b could be extended to
+check memory files for patterns that conflict with newly implemented
+code.
+
+**** 5.3 Over-recording
+
+Risk: every review correction gets captured, flooding memory with
+trivial or one-off fixes.
+
+Mitigation: apply a recording threshold. Not every correction is a
+reusable pattern. A correction is pattern-worthy when it:
+- Reflects a *project convention* (not a one-off mistake)
+- Would recur in future implementations (not context-dependent)
+- Cannot be enforced by tooling (not lintable)
+
+**** 5.4 Dual-system confusion
+
+Risk: developers are unsure whether a pattern goes to memory or notes.
+
+Mitigation: the routing heuristic is the same as the existing
+memory/knowledge boundary -- imperatives to memory, facts to notes.
+No new decision framework needed.
+
+** Decision
+
+*** Recording strategy: dual-destination routing
+
+After a user review correction, Claude evaluates whether the
+correction reveals a reusable pattern using this checklist:
+
+1. *Is this a project convention or a one-off mistake?* (Convention ->
+   record; one-off -> skip)
+2. *Will this recur in future implementations?* (Yes -> record;
+   unlikely -> skip)
+3. *Is the pattern already captured?* (Yes -> skip; no -> record)
+4. *Is the pattern an imperative or a fact?*
+   - Imperative ("do X, not Y") -> memory (=feedback_code_principles.md=
+     or a similar project conventions file)
+   - Fact ("the system does X") -> =notes/= as =:fact:=
+
+*** Capture trigger location
+
+The capture evaluation happens at the END of Step 13 (Full Flow) or
+Step 5 (Implementation Flow), after all review notes are resolved.
+Claude reviews the resolved corrections and evaluates each for pattern
+persistence. This is a lightweight step -- not a new flow phase, but a
+trailing check within the existing review loop.
+
+*** Pattern format in memory files
+
+For patterns captured in =feedback_code_principles.md= (or equivalent):
+
+#+begin_example
+**<Pattern title> -- <one-line rationale>.**
+- `<correct approach>` not `<incorrect approach>`.
+- Why: <brief explanation>.
+#+end_example
+
+This matches the existing format in =feedback_code_principles.md=.
+No new template needed.
+
+*** Promotion to CODE-QUALITY.md
+
+A pattern is promoted to CODE-QUALITY.md when:
+- It has been validated across 2+ projects
+- It reflects a universal principle, not a project-specific convention
+- The user explicitly approves the promotion
+
+Promotion is a manual, user-initiated action -- not automatic.
+
+*** What NOT to capture
+
+- Typo fixes, formatting corrections, import ordering
+- One-off mistakes that won't recur (wrong variable name in one place)
+- Corrections about volatile code (actively being refactored)
+- Corrections that are already enforced by linter or type system
+- Corrections about standard library usage documented in official docs
+
+** Open Questions
+
+All open questions were resolved during research. No outstanding
+items.
+
+** Appendix: Intake
+
+*** Question
+
+When a user corrects Claude's code during review -- revealing a
+pattern like "in this codebase, error handling for MQ messages always
+uses {:error, reason} tuples, not exceptions" -- should Claude persist
+this as a =:fact:= note, a memory directive, both, or neither?
+
+The user frames this as "a collection of fixed patterns for code
+improvement replication when implementing things in future."
+
+*** Context
+
+A Claude Code flow system has:
+- A user review phase (Steps 12-13 in Full Flow, Steps 5-6 in
+  Implementation Flow) where the user reviews Claude's code and
+  provides corrections
+- A project notes system (=notes/= directory with denote-named =.org=
+  files, =:fact:= type) for persisting code-undiscoverable project
+  knowledge
+- A Claude Code memory system for behavioral directives ("use E2E
+  tests", "prefer snake_case")
+- A three-gate framework for deciding what to record as a fact
+  (novelty gate, stability gate, retrieval cost gate)
+
+The existing =feedback_code_principles.md= memory file already
+contains patterns learned from corrections: Elixir idioms, test
+conventions, review workflow rules -- all with before/after examples
+and rationale.
+
+*** In Scope
+
+- Whether fix patterns should be persisted
+- Where they should be stored (memory vs notes vs both vs new system)
+- What format they should use
+- How the capture trigger integrates with existing flows
+- The lifecycle of a captured pattern
+
+*** Out of Scope
+
+- Implementation changes to flow files (that's a subsequent design task)
+- Automated lint rule generation from patterns
+- Cross-project pattern sharing
+- Changes to the three-gate framework itself
+
+*** Evaluation Criteria
+
+1. Alignment with existing memory/knowledge boundary
+2. No new infrastructure (reuse existing systems)
+3. Pattern quality (structured enough to be actionable, concise enough
+   to stay in attention window)
+4. Capture reliability (patterns don't get lost)
+5. Staleness resistance (patterns stay current)
+
+*** Known Leads
+
+- Cursor Bugbot's learned rules system
+- Elementor's self-learning code review
+- Martin Fowler's knowledge priming pattern
+- The coding.md standards-as-living-code movement
+- Existing =feedback_code_principles.md= as a working prototype
+- The three-gate framework from project-knowledge-db research
+- Context rot research (arxiv 2606.09090)
+
+Sources:
+- [[https://cursor.com/blog/bugbot-learning][Bugbot now self-improves with learned rules (Cursor)]]
+- [[https://medium.com/elementor-engineers/the-self-learning-code-review-teaching-ai-cursor-to-learn-from-human-feedback-454df64c98cc][The Self-Learning Code Review (Elementor Engineers)]]
+- [[https://martinfowler.com/articles/reduce-friction-ai/knowledge-priming.html][Knowledge Priming (Martin Fowler)]]
+- [[https://coding.md/][Coding.md - Standards as Living Code]]
+- [[https://arxiv.org/pdf/2606.09090][Context Rot in AI-Assisted Software Development (arxiv)]]
+- [[https://arxiv.org/pdf/2602.07783][Automated Linter Configuration via DSL-Based LLM Compilation (arxiv)]]
+- [[https://stackoverflow.blog/2026/03/26/coding-guidelines-for-ai-agents-and-people-too/][Building shared coding guidelines for AI (Stack Overflow)]]
+- [[https://dev.to/rahulxsingh/the-state-of-ai-code-review-in-2026-trends-tools-and-whats-next-2gfh][The State of AI Code Review in 2026 (DEV)]]
+- [[https://www.qodo.ai/blog/5-ai-code-review-pattern-predictions-in-2026/][5 AI Code Review Pattern Predictions in 2026 (Qodo)]]
+- [[https://github.com/orgs/community/discussions/197384][Preventing AI drift from project conventions (GitHub Discussion)]]
