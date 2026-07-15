@@ -553,7 +553,30 @@ Present both files to the user. **Wait for user** to fill in
 Re-run `mix paranoid`.
 
 If `review-notes.org` has unresolved notes, prompt **`loop`**.
-If all resolved, proceed to Step 14.
+If all resolved, proceed to Step 13d.
+
+**Step 13d — Pattern capture.** Review all resolved corrections in
+`review-notes-resolved.org`. For each correction, evaluate:
+
+1. Is this a project convention or a one-off mistake? (one-off → skip)
+2. Will this recur in future implementations? (unlikely → skip)
+3. Is the pattern already captured in memory or notes? (yes → skip)
+4. Is the correction an imperative or a fact?
+   - Imperative ("do X, not Y") → save to Claude Code memory
+     (project conventions file, e.g. `feedback_code_principles.md`)
+   - Fact about the system ("payloads use camelCase") → save to
+     `notes/` as a `:fact:` entry (if `notes/` exists and is not
+     read-only)
+
+Format for memory entries:
+```
+**<Pattern title> — <one-line rationale>.**
+- `<correct approach>` not `<incorrect approach>`.
+- Why: <brief explanation>.
+```
+
+This is a lightweight trailing check, not a gate — it does not block
+progression. Proceed to Step 14.
 
 ### Step 14 — Finalize implementation
 
