@@ -1,0 +1,397 @@
+#+STARTUP: overview
+#+title:      Research: Code as Documentation — Self-Documenting Code Practices
+#+date:       [2026-07-14 Mon 21:26]
+#+filetags:   :research:researched:code-quality:documentation:review:
+#+identifier: 20260714T212603
+#+signature:
+#+deferred:
+* Research: Code as Documentation — Self-Documenting Code Practices
+
+** Findings
+
+*** What self-documenting code means concretely
+
+The external survey (findings.org) converges on a three-pillar model:
+
+1. *Naming* -- variables, functions, modules reveal intent without
+   requiring comments. The "what" is obvious from names alone.
+2. *Structure* -- control flow, function decomposition, and module
+   organization make the "how" discoverable by reading the code.
+3. *Types* -- type signatures (@spec in Elixir, branded/union types
+   in TypeScript) serve as compiler-verified documentation that
+   cannot go stale.
+
+The boundary where comments ARE justified: explaining /why/ a decision
+was made, linking to external specs, documenting business rules that
+cannot be modeled in types, and marking TODOs with ticket references.
+Comments that explain /what/ code does are a refactoring signal, not
+a documentation need.
+
+*** Mental Programming (Mokevnin)
+
+Kirill Mokevnin's "Mental Programming" concept (presented at
+conferences since 2013, refined through 3 versions up to SECON 2021)
+provides the unifying /why/ that tactical rules lack:
+
+*Good code encodes the domain's mental model.* When you read the
+source, you should reconstruct the author's understanding of the
+problem with maximum accuracy.
+
+This is a stronger framing than "self-documenting code" — it shifts
+the goal from "code that doesn't need comments" to "code that
+transfers understanding." Key practices:
+
+- *Semantic naming from the domain:* =sign_in(user)= instead of
+  =session[:user_id] = user.id=. Names should reflect the domain
+  operation, not the mechanical implementation.
+- *DDD's Ubiquitous Language:* the naming strategy IS the domain
+  model. Code should use the same terms as domain experts.
+- *Contract honesty:* methods must behave as their names promise. A
+  function named =find_user= must not create a user as a side effect.
+- *Comments as code smell:* if you need a comment to explain what code
+  does, refactor the code instead. Comments are a signal that the
+  mental model is not encoded in the structure.
+- *Principles as enablers:* GRASP, SOLID, CQS, Law of Demeter, and
+  Single Level of Abstraction are tools for encoding the mental model
+  clearly — not goals in themselves.
+
+The relationship to our three-pillar model: Mental Programming is the
+/intent/ that naming, structure, and types serve. The reviewer should
+ask not just "is this name clear?" but "does this code transfer the
+author's mental model of the domain?"
+
+Detailed findings in =code-as-documentation-design/mental-programming.org=.
+
+*** What the existing system already covers
+
+CODE-QUALITY.md has three directly relevant rules:
+- Full, unambiguous variable names (no abbreviations)
+- Meaningful verbs for function names
+- Domain terms for field names, not implementation terms
+
+The Style Reviewer (#6) checks "naming consistency" and "pattern
+consistency with existing codebase." The Principles Reviewer (#7)
+checks structural principles (SRP, High Cohesion) that /enable/
+clarity but do not /verify/ it.
+
+*** The gap
+
+The audit (audit.org) identifies two uncovered properties:
+
+1. *Code readability without comments* -- no reviewer asks "would a
+   maintainer understand this without a docstring?" The Style
+   Reviewer checks that names are /consistent/, not that they are
+   /clear/. These are different properties: code can use consistent
+   naming conventions and still be opaque.
+
+2. *Narrative flow* -- no reviewer assesses whether control flow
+   reveals intent, whether operations are ordered to tell a story,
+   or whether comments exist because the code is unclear rather than
+   because context is genuinely external.
+
+Additionally, CODE-QUALITY.md has rules about naming but no guidance
+on comment discipline (when to comment vs. when to refactor), type
+expressiveness (branded types, discriminated unions, @spec), or the
+structural principle that extracting a function should be preferred
+over adding a comment.
+
+*** Critic check results
+
+*1. Is Option D (Combined) just confirmation bias? Would Option A
+(checklist only) suffice?*
+
+Partially valid concern. Option A's checklist alone would cover
+the reviewer gap. However, Option A does not address the
+CODE-QUALITY.md gap -- the missing guidance on comment discipline,
+type-as-documentation patterns, and the extract-over-comment
+principle. These are author-time rules, not review-time checks.
+Without them, the reviewer would be checking against criteria that
+exist only in the reviewer's head, not in a shared reference
+document. The combination is justified: checklist for reviewers,
+standards additions for authors.
+
+That said, Option D overreaches with some of its language-specific
+items. The "no boolean parameters" rule and "branded types for all
+IDs" rule are prescriptive design preferences, not self-documentation
+requirements. These should be softened to "prefer" rather than "must."
+
+*2. Is checklist item 13 ("Can a new team member understand this?")
+too subjective?*
+
+Yes. This is unfalsifiable -- the reviewer cannot know what a
+hypothetical new team member would or would not understand. It also
+subsumes all other items (if you answer "yes" to items 1-12, item 13
+is automatically satisfied). It should be removed. The checklist
+should end at 12 concrete items or be replaced with a more specific
+formulation like: "Are there code sections where you needed to read
+more than the immediate context to understand what happens?"
+
+*3. How does the Style Reviewer's "naming consistency" differ from
+checklist items 1-5?*
+
+The Style Reviewer checks whether names follow the same conventions
+as the rest of the codebase (snake_case vs camelCase, prefix
+patterns, module naming patterns). Checklist items 1-5 check whether
+names are /semantically clear/: does the name reveal purpose, use
+domain terms, avoid ambiguity. These are orthogonal properties. Code
+can be perfectly consistent (all snake_case, all following the same
+prefix patterns) and still have names like =process_data= or =handle_result=
+that communicate nothing about what is actually being processed or
+handled. The distinction is syntactic consistency (Style Reviewer)
+vs. semantic clarity (proposed checklist items 1-5).
+
+*4. Is Option E (AI-augmented) the status quo, since Claude IS the
+reviewer?*
+
+Yes, for this project. Claude Code already runs all reviewer roles
+during self-review. Adding a "self-documenting code reviewer" role
+means Claude evaluates self-documentation quality -- which is
+literally what Option E describes. Option E as a separate tooling
+investment is irrelevant here; it is already the execution model.
+The real question is what /criteria/ Claude should evaluate against,
+which is what Options A and C address. Option E is not a real option
+in this context; it is the delivery mechanism for whichever criteria
+we choose.
+
+
+** Comparison
+
+*** Option A (Checklist Only) vs. Option D (Checklist + Standards)
+
+| Criterion | Option A | Option D |
+|-----------|----------|----------|
+| Reviewer coverage | Fills the gap | Fills the gap |
+| Author guidance | None -- relies on reviewer catching issues | Adds rules to CODE-QUALITY.md so authors self-correct before review |
+| Enforcement | Review-time only | Review-time + authoring-time |
+| Adoption effort | Low -- add one reviewer checklist | Medium -- add checklist + update CODE-QUALITY.md |
+| Risk of rule fatigue | Low | Medium if all rules adopted at once |
+
+*** New Reviewer (#9) vs. Expanding Style Reviewer (#6)
+
+| Criterion | New Reviewer #9 | Expand Style Reviewer #6 |
+|-----------|----------------|--------------------------|
+| Clarity of responsibility | Clear: "Code Clarity Reviewer" is unambiguous | Muddied: Style Reviewer would check both syntactic consistency AND semantic clarity -- two different cognitive modes |
+| Reviewer count impact | 9 implementation reviewers (was 8) | 8 implementation reviewers (unchanged) |
+| Parallel execution cost | Minimal -- Claude runs all roles in one pass anyway | None |
+| Risk of being skipped | Lower -- dedicated role is harder to accidentally omit | Higher -- expanded scope within an existing role is easily forgotten |
+| Redundancy | Some overlap on naming items | Some overlap on naming items |
+
+*** Design Phase vs. Implementation Phase
+
+| Concern | Design Phase | Implementation Phase |
+|---------|-------------|---------------------|
+| Module/function naming | Relevant -- design proposes names | Relevant -- implementation uses names |
+| Type expressiveness | Not yet applicable | Directly applicable |
+| Comment discipline | Not applicable | Directly applicable |
+| Structural clarity | Relevant -- design proposes structure | Relevant -- implementation realizes structure |
+| Narrative flow | Marginal -- design is abstract | Directly applicable |
+
+Self-documentation is primarily an implementation-phase concern. The
+design phase touches it only through naming and structure proposals.
+Adding a design-phase reviewer for this adds cost with marginal
+benefit -- the API Reviewer (#4 in FULL-FLOW design phase) already
+checks "naming consistency" and "function signatures, module
+boundaries," which covers the design-phase naming concern adequately.
+
+
+** Recommendation
+
+*** Guiding Principle: Mental Programming
+
+The reviewer and author guidance should be framed by Mokevnin's
+Mental Programming principle: *good code encodes the domain's mental
+model.* The goal is not "code that doesn't need comments" but "code
+that transfers understanding." Every checklist item should serve this
+goal.
+
+*** 1. Add a new Code Clarity Reviewer as #9 (implementation phase only)
+
+Do NOT expand the Style Reviewer. The Style Reviewer's job is
+syntactic and pattern consistency -- "does this look like the rest of
+the codebase?" The Code Clarity Reviewer's job is semantic
+readability -- "does this encode the domain's mental model?" These
+require different cognitive modes and checking them separately produces
+better results than overloading one role.
+
+Do NOT add a design-phase reviewer. Self-documentation is primarily
+about implementation details (naming, types, control flow, comments)
+that do not exist yet during design. The API Reviewer already covers
+design-phase naming.
+
+*Proposed reviewer definition for flow tables:*
+
+#+begin_example
+| 9 | **Code Clarity Reviewer** | Self-documenting quality: naming reveals intent (not just consistent), types express constraints, comments explain "why" not "what", control flow is self-evident. Check against CODE-QUALITY.md "Self-Documenting Code" section |
+#+end_example
+
+*Proposed checklist (10 items):*
+
+Naming clarity (not covered by Style Reviewer's consistency checks):
+1. Do function/variable names reveal purpose, not implementation?
+   (=remaining_retries= not =n=, =template= not =source_graph=)
+2. Do function names use meaningful verbs, not vague ones?
+   (=validate_order= not =process=, =publish_result= not =handle_data=)
+3. Do boolean names read as true/false propositions?
+   (=is_expired=, =has_permission=, =can_retry=)
+4. Do names use domain terminology from the design doc?
+
+Type expressiveness:
+5. Do types express constraints that would otherwise need comments?
+   (branded types for IDs, discriminated unions for state, @spec for
+   public functions)
+6. Are function signatures self-documenting? (no =any=, no raw
+   =string= where a domain type would be clearer)
+
+Comment discipline:
+7. Does every comment explain /why/, not /what/?
+8. Could any comment be eliminated by renaming, extracting a
+   function, or adding a type constraint?
+
+Structural clarity:
+9. Does each function operate at one level of abstraction?
+10. Is control flow self-evident, or does understanding require
+    reading non-adjacent code?
+
+*** 2. Add a "Self-Documenting Code" section to CODE-QUALITY.md
+
+This provides author-time guidance so that the Code Clarity Reviewer
+catches fewer issues (the author already followed the rules).
+
+*Proposed additions:*
+
+#+begin_example
+## Self-Documenting Code
+
+**Prefer refactoring over commenting.**
+- If you write a comment explaining what code does, that is a signal
+  to rename, extract a function, or add a type constraint instead.
+- Comments are justified only for: why a decision was made, links to
+  external specs/tickets, business rules that cannot be modeled in
+  types, and non-obvious performance/side-effect warnings.
+
+**Use types to document constraints.**
+- TypeScript: prefer branded types for entity IDs (`TemplateId`,
+  `RunId`), discriminated unions for multi-state objects, `unknown`
+  over `any`.
+- Elixir: add @spec to all public functions. Use pattern matching
+  in function heads to enumerate valid cases rather than branching
+  internally.
+
+**Name functions as meaningful verbs, not generic operations.**
+- `process`, `handle`, `manage`, `do` are non-names. They
+  communicate nothing about what the function actually does.
+- Good: `validate_items`, `publish_result`, `advance_stage`
+- Bad: `process_data`, `handle_event`, `do_work`
+
+**Avoid vague container names.**
+- `data`, `value`, `item`, `result`, `info`, `temp` reveal nothing.
+- Name the variable after what it holds: `validated_order`,
+  `publisher_config`, `retry_count`.
+#+end_example
+
+*** 3. No changes needed to design-phase reviewers
+
+The API Reviewer (#4 in FULL-FLOW Step 6) already covers
+"naming consistency" and "function signatures, module boundaries"
+for the design phase. This is sufficient -- the design phase does
+not produce implementation-level naming, types, or comments.
+
+*** 4. Summary of changes
+
+| File | Change |
+|------|--------|
+| =CODE-QUALITY.md= | Add "Self-Documenting Code" section (4 rules, ~20 lines) |
+| =FULL-FLOW.md= Step 10 table | Add row 9: Code Clarity Reviewer with 10-item checklist |
+| =IMPLEMENTATION-FLOW.md= Step 3 table | Add row 8: Code Clarity Reviewer with same checklist |
+
+Total addition: ~40 lines across 3 files. No structural changes to
+the flow. No new tools or automation required.
+
+
+** Decision
+
+/To be filled by user after reviewing recommendation./
+
+
+** Open Questions
+
+1. *Checklist item granularity:* Should the 10-item checklist be
+   embedded directly in the flow file tables (like the Principles
+   Reviewer's checklist in IMPLEMENTATION-FLOW.md), or referenced
+   from CODE-QUALITY.md to avoid duplication?
+
+2. *Phasing:* Should the CODE-QUALITY.md additions and the reviewer
+   role be adopted simultaneously, or should CODE-QUALITY.md come
+   first to establish the rules before the reviewer starts checking
+   them?
+
+3. *Severity calibration:* What severity should naming-clarity
+   findings receive? The Style Reviewer's consistency findings are
+   typically Medium. Naming-clarity findings arguably have the same
+   severity since they affect maintainability but not correctness.
+
+-----
+
+* Appendix: Research Intake
+
+/The following sections preserve the original research question,
+context, scope, and leads for reference./
+
+** Question
+How should the flow system enforce "code as documentation" -- the
+principle that code should be self-documenting through naming,
+structure, and object design rather than through comments? What
+specific reviewer criteria and author guidance should be added?
+
+** Context
+Inspired by:
+- https://x.com/mokevnin/status/2076600794971836464
+- https://x.com/mattpocockuk/status/2076596585069174925
+
+The core claim: code should be the ultimate documentation. This has
+two aspects:
+
+1. *Author guidance:* CODE-QUALITY.md should suggest self-documenting
+   patterns as a first choice -- naming conventions, function
+   decomposition, type-driven design that makes behavior obvious from
+   signatures alone.
+
+2. *Reviewer role:* A dedicated reviewer (or expanded criteria for an
+   existing reviewer) that validates code IS self-documenting -- not by
+   checking for comments, but by checking that structure and naming
+   make comments unnecessary.
+
+The existing flow system has:
+- CODE-QUALITY.md with naming, structure, and test guidelines
+- Style Reviewer (#6 in self-review) checking naming/pattern consistency
+- Abstraction Minimalist (#8) checking tier consistency
+- No reviewer specifically focused on "would a reader understand this
+  without comments?"
+
+** In Scope
+- What "self-documenting code" means concretely (not philosophy)
+- Specific checkable criteria for a reviewer
+- Author guidance additions to CODE-QUALITY.md
+- Whether this is a new reviewer role or an expansion of existing roles
+- How this interacts with the Elixir/TypeScript stack
+
+** Out of Scope
+- Comment style guides (the point is to need fewer comments)
+- Documentation generation tools (ExDoc, TypeDoc)
+- API documentation (that's a different concern)
+
+** Evaluation Criteria
+1. Actionability -- criteria must be checkable, not subjective
+2. Non-redundancy -- don't duplicate what Style Reviewer already does
+3. Stack awareness -- Elixir and TypeScript have different idioms
+4. Brevity -- the reviewer checklist should be <15 items
+
+** Known Leads
+- https://x.com/mokevnin/status/2076600794971836464
+- https://x.com/mattpocockuk/status/2076596585069174925
+- =~/.claude/flows/CODE-QUALITY.md= -- current code quality guidelines
+- =~/.claude/flows/FULL-FLOW.md= -- reviewer roles (Style, Abstraction)
+- Martin Fowler's "Refactoring" -- naming/extraction principles
+- "Clean Code" (Robert Martin) -- naming chapters
+- Kevlin Henney's talks on naming and intent
+
