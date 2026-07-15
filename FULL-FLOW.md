@@ -483,7 +483,7 @@ conversation** — a single delegated subagent cannot launch 8 parallel
 reviewers. When implementation is delegated to a subagent, return
 control to the main conversation before running this step.
 
-Launch all 8 specialized reviewer subagents in parallel, each with
+Launch all 9 specialized reviewer subagents in parallel, each with
 an adversarial stance:
 
 | # | Role | Focus |
@@ -496,6 +496,7 @@ an adversarial stance:
 | 6 | **Style Reviewer** | Naming consistency, pattern consistency with existing codebase, organization |
 | 7 | **Principles Reviewer** | SRP, DIP, Information Expert, Low Coupling, High Cohesion, Creator (smell detection, not mandates) |
 | 8 | **Abstraction Minimalist** | Function-level tier consistency, module-level API coherence, cross-module tier leaks, module split candidates (hunt for ≥2 tiers with ≥3 functions each in modules over ~150 lines — propose sub-module decomposition by micro-domain) |
+| 9 | **Code Clarity Reviewer** | Self-documenting quality: naming reveals intent (not just consistent), types express constraints, comments explain "why" not "what", control flow is self-evident. Check against CODE-QUALITY.md "Self-Documenting Code" checklist |
 
 Each produces a structured report (Critical / High / Medium / Low /
 Info). Claude collates and deduplicates into `review.org` in the

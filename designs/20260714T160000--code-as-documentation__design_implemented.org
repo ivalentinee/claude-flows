@@ -1,0 +1,63 @@
+#+STARTUP: overview
+#+title:      Code as Documentation: Self-Documenting Code Reviewer
+#+date:       [2026-07-14 Mon 16:00]
+#+filetags:   :design:implemented:code-quality:documentation:review:
+#+identifier: 20260714T160000
+#+signature:
+#+deferred:
+* Code as Documentation: Self-Documenting Code Reviewer
+
+** Goal
+Add guidance to the code author flow and a dedicated code reviewer role
+that validates code is self-documenting — not through comments, but
+through naming, structure, and object design.
+
+Guiding principle (Mokevnin's Mental Programming): good code encodes
+the domain's mental model. The goal is "code that transfers
+understanding," not just "code that doesn't need comments."
+
+** Constraints
+- ~40 lines of additions across 3 files — no structural flow changes
+- Code Clarity Reviewer is implementation-phase only (no design-phase)
+- Checklist in CODE-QUALITY.md (single source), referenced from flows
+- No new tooling — Claude IS the reviewer
+
+** References
+- =20260714T212603--code-as-documentation__research_researched.org=
+- =~/.claude/flows/CODE-QUALITY.md=
+- =~/.claude/flows/FULL-FLOW.md= (Step 10 reviewer table)
+- =~/.claude/flows/IMPLEMENTATION-FLOW.md= (Step 3 reviewer table)
+
+** Acceptance Criteria
+1. CODE-QUALITY.md has a "Self-Documenting Code" section with 4 rules
+2. FULL-FLOW.md Step 10 has Code Clarity Reviewer as #9
+3. IMPLEMENTATION-FLOW.md Step 3 has Code Clarity Reviewer as #8/9
+4. The reviewer definition references CODE-QUALITY.md section
+5. The 10-item checklist is in CODE-QUALITY.md, not duplicated in flows
+
+** Design
+
+*** 1. CODE-QUALITY.md Addition
+
+New section "Self-Documenting Code" after existing sections. Contains:
+- 4 author-time rules (refactor over comment, types as docs, meaningful
+  verbs, no vague containers)
+- 10-item reviewer checklist (naming 1-4, types 5-6, comments 7-8,
+  structure 9-10) used by the Code Clarity Reviewer
+
+*** 2. FULL-FLOW.md Step 10 — Add Reviewer #9
+
+#+begin_example
+| 9 | **Code Clarity Reviewer** | Self-documenting quality: naming
+reveals intent (not just consistent), types express constraints,
+comments explain "why" not "what", control flow is self-evident.
+Check against CODE-QUALITY.md "Self-Documenting Code" checklist |
+#+end_example
+
+*** 3. IMPLEMENTATION-FLOW.md Step 3 — Add Reviewer
+
+Same definition added to the implementation flow's reviewer table.
+
+** Sub-features
+
+** Known Deferred Work

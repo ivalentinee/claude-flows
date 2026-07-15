@@ -179,6 +179,7 @@ against the actual code, not memory.
 Skip LSP (inheritance-oriented), ISP (Elixir behaviours are already minimal), OCP (leads to premature extension points). Do NOT recommend abstractions that don't serve an immediate need — three similar lines of code is better than a premature abstraction.
 
 | 8 | **Abstraction Minimalist** | Check that abstraction levels are consistent within each function and module (see checklist below). Hunt for module split candidates: modules over ~150 lines with ≥2 tiers of ≥3 functions each. The goal is context minimization: reading a function should not require holding details from a different abstraction tier. Flag violations as extraction opportunities, not style complaints |
+| 9 | **Code Clarity Reviewer** | Self-documenting quality: naming reveals intent (not just consistent), types express constraints, comments explain "why" not "what", control flow is self-evident. Check against CODE-QUALITY.md "Self-Documenting Code" checklist |
 
 **Abstraction Minimalist checklist** (for reviewer #8):
 
