@@ -171,7 +171,9 @@ checks whether the code encodes the domain's mental model:
    function, or adding a type constraint?
 
 *Structural clarity:*
-9. Does each function operate at one level of abstraction?
+9. Does each function operate at one level of abstraction? Are there
+   missing intermediate tiers? (Composed Method — see Abstraction
+   Minimalist checklist for the full heuristic)
 10. Is control flow self-evident, or does understanding require
     reading non-adjacent code?
 

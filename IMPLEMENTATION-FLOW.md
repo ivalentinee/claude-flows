@@ -193,6 +193,22 @@ Skip LSP (inheritance-oriented), ISP (Elixir behaviours are already minimal), OC
   — but short, clear inline expressions at the right tier are fine
   (do NOT extract for extraction's sake)
 
+*Function level — is there a missing intermediate tier? (Composed Method)*
+- An orchestration function that makes >=6 calls to detail-level
+  functions may be hiding a missing intermediate tier. Check whether
+  subsets of those calls form cohesive groups that could be named
+  with a domain-meaningful verb-noun name.
+- Extract when the intermediate function earns a meaningful name AND
+  the orchestrator becomes easier to scan after extraction.
+- Do NOT extract when: the calls are short and uniform, the
+  extracted function would have a vague name (`do_setup`,
+  `prepare_data`), or the extraction creates a single-caller
+  function with no independent testability.
+- This is the Composed Method pattern (Beck/Kerievsky): compose a
+  method from calls at the same conceptual tier, introducing
+  intermediate tiers when the gap between orchestration and detail
+  is too wide.
+
 *Module level — does the public API sit at one coherent tier?*
 - A module exporting both `sync_worker_state/1` (coordination) and
   `parse_amqp_timestamp/1` (utility) has a leaky abstraction surface
