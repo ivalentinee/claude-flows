@@ -61,6 +61,17 @@ they know; empty sections are fine.
 #+STARTUP: overview
 * <Feature Name>
 
+** Original Prompt
+(Verbatim copy of the user's chat message that triggered this flow.
+Preserves raw intent for Steward drift detection.
+Set once at init, never modified.)
+
+** Steering
+(Append-only log of user messages during the flow that change
+direction, add scope, constrain approach, or redirect focus.
+Timestamped entries, added as they happen. Only directional
+messages — not "continue" or "finalize".)
+
 ** Goal
 (What this feature should accomplish and why — the user problem
 it solves or the technical need it addresses.)

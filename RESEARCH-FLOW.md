@@ -87,6 +87,17 @@ are visible by default in org-mode.
 #+STARTUP: overview
 * Research: <Topic>
 
+** Original Prompt
+(Verbatim copy of the user's chat message that triggered this
+research. Preserves raw intent for Steward drift detection.
+Set once at init, never modified.)
+
+** Steering
+(Append-only log of user messages during the flow that change
+direction, add scope, constrain approach, or redirect focus.
+Timestamped entries, added as they happen. Only directional
+messages — not "continue" or "finalize".)
+
 ** Question
 (The specific question or problem being researched. Frame as a
 question, not a statement — "How should we handle real-time sync

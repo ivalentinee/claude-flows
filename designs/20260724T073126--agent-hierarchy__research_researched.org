@@ -1,0 +1,206 @@
+#+STARTUP: overview
+#+title:      Research: Agent Hierarchy and Manager-Level Subagents
+#+date:       [2026-07-24 Thu 07:31]
+#+filetags:   :research:researched:agents:hierarchy:flows:
+#+identifier: 20260724T073126
+#+signature:
+#+deferred:
+* Research: Agent Hierarchy and Manager-Level Subagents
+
+** Question
+What agent hierarchies are used or recommended for AI coding
+assistants, and how could a "manager" (boss) level subagent improve
+the existing flat subagent structure in the flows?
+
+** Context
+The current flow system uses flat subagent invocations — the main
+conversation orchestrates all subagents directly (Author, Critic,
+Boundary Analyst, 9 reviewers, Validator, Verifier, etc.). There is
+no intermediate management layer. The main conversation must:
+- Decide which subagents to launch and when
+- Collate and deduplicate outputs from parallel subagents
+- Resolve conflicts between subagent findings
+- Track iteration state across design loops
+- Apply the three-gate framework, convergence gate, pattern capture
+
+A "manager" subagent could own some of these responsibilities,
+freeing the main conversation for user interaction and high-level
+decisions.
+
+** In Scope
+- What agent hierarchies exist in literature and practice (web search)
+- Which responsibilities could be delegated to a manager subagent
+- How this interacts with the existing flow steps
+- Trade-offs: delegation depth, context loss, error propagation
+- Concrete manager role definitions for the existing flows
+
+** Out of Scope
+- Implementation details (prompt engineering for managers)
+- Changes to Claude Code's Agent tool capabilities
+- Multi-agent frameworks (AutoGen, CrewAI, etc.) as replacements —
+  only as inspiration for patterns within Claude Code's single-tool
+  agent model
+
+** Evaluation Criteria
+1. Reduced main-conversation cognitive load
+2. Improved output quality (managers catch subagent drift)
+3. No increase in total token consumption (managers should compress,
+   not expand)
+4. Compatibility with existing flow structure
+5. Practical within Claude Code's Agent tool constraints (agents are
+   subprocesses with their own context, communicate via return values)
+
+** Known Leads
+- Current flow subagent structure in FULL-FLOW.md, DESIGN-FLOW.md
+- Claude Code Agent tool: subagent_type, run_in_background, SendMessage
+- Multi-agent frameworks: AutoGen, CrewAI, LangGraph (as inspiration)
+- Anthropic's own agent patterns documentation
+- The "orchestrator-worker" pattern from LLM agent literature
+
+** Findings
+
+Detailed findings are in [[file:agent-hierarchy-design/findings.org][findings.org]].
+
+Summary of key findings:
+
+1. *Five hierarchy topologies exist:* flat, two-tier (orchestrator-
+   worker), hub-spoke, pipeline, and tree. Two-tier is the dominant
+   production pattern. Three-tier is rare and generally not justified
+   for fewer than ~50 agents.
+
+2. *Framework analysis (AutoGen, CrewAI, LangGraph, OpenAI Swarm,
+   Anthropic patterns):* Every major framework supports two-tier.
+   Only CrewAI has an explicit "manager validates worker output"
+   pattern. LangGraph's shared-state model avoids summarization
+   loss. OpenAI Swarm demonstrates that hierarchy is not always
+   needed. Anthropic warns against over-engineering.
+
+3. *Manager responsibilities cluster into six areas:* task
+   decomposition, routing, quality validation, output consolidation,
+   context compression, and error handling/re-delegation. For the
+   current flow, consolidation and conflict resolution have the
+   highest ROI.
+
+4. *Seven anti-patterns identified:* telephone game, manager
+   bottleneck, over-delegation, context starvation, symmetric
+   hierarchy fallacy, manager-as-summarizer trap, and the "too many
+   agents" problem.
+
+5. *Claude Code constraint:* subagents cannot launch other subagents.
+   Any manager must be a post-processor, not a live coordinator.
+   This limits hierarchy to exactly two levels.
+
+6. *Code review specific:* The current flow's 9-reviewer hub-spoke
+   pattern is the phase that benefits most from a manager layer.
+   The consolidation step (dedup, severity resolution, conflict
+   flagging) is mechanical, token-intensive, and error-prone when
+   done by the main conversation.
+
+7. *Production AI review tools use single-agent approaches* (not
+   parallel specialized reviewers). The current flow is more
+   thorough than any production tool, which justifies the
+   consolidation complexity.
+
+** Comparison
+
+Detailed options are in [[file:agent-hierarchy-design/options.org][options.org]].
+
+| Criterion                            | A: Status quo | B: Review Manager | C: Three-tier  |
+|--------------------------------------+---------------+-------------------+----------------|
+| Main-conversation cognitive load     | None reduced  | High reduction    | Highest        |
+| Output quality improvement           | Low           | Medium-High       | Low (ctx loss) |
+| Token cost increase                  | None          | ~3-5K/review      | ~10-20K/review |
+| Latency increase                     | None          | ~5-15s/review     | ~30-60s/review |
+| Compatibility with Agent tool        | Full          | Full              | Impossible     |
+| Implementation effort                | Light         | Moderate          | Heavy          |
+| Risk of information loss             | None          | Low               | High           |
+
+** Recommendation
+
+Two complementary manager-level roles, each addressing a distinct gap:
+
+*** 1. Review Collator (mechanical — high ROI, implement first)
+
+A post-processor subagent launched after all 9 reviewers complete
+(Step 10 in Full Flow, Step 3 in Implementation Flow). Scope:
+- Deduplication: merge semantically equivalent findings across reviewers
+- Severity resolution: when reviewers disagree on severity, pick highest
+- Conflict flagging: identify contradictory recommendations, don't resolve
+- Structure enforcement: ensure review.org follows consistent format
+
+Key principles:
+- Post-processor, not coordinator — runs AFTER all reviewers complete
+- Does not suppress findings; everything passes through
+- Conflicts are flagged for the main conversation, not auto-resolved
+- Start with Step 10 only; defer Step 6 (design review) until proven
+
+Estimated savings: 20-40% of review step time. ~3-5K tokens per
+review. See [[file:agent-hierarchy-design/options.org][options.org]] for full details.
+
+*** 2. Steward (intent guardian — novel, validate empirically)
+
+A pure observer subagent that checks work products against the user's
+original intake (Goal, Constraints, Acceptance Criteria). Catches two
+classes of error no current role detects:
+
+1. *Correct execution of the wrong thing:* technically sound output
+   that doesn't solve the user's actual problem
+2. *Drift through iteration:* design that evolved to satisfy every
+   reviewer while drifting from the original Goal
+
+Four intervention points:
+- *S1 (post-Author):* does the initial design solve the Goal?
+- *S2 (post-auto-resolve):* after N iterations, has the design drifted?
+  (Highest-value single point)
+- *S3 (post-design-review):* did addressing reviewer findings shift scope?
+- *S4 (pre-user-review):* does implementation match the original intake?
+
+The Steward is NOT a manager, supervisor, or decision-maker. It is an
+observer that outputs one of: Pass, Drift (→ [Critical] in criticism.org),
+or Annotation (→ journal.org). ~2-6K tokens per invocation, ~8-24K per
+flow run.
+
+The critical gap it fills: *no current flow step re-reads the intake
+after the Author's initial pass.* The Design Fidelity Reviewer checks
+implementation against the design, but if the design itself drifted,
+the reviewer validates the drift.
+
+Recommended next step: run the Steward check manually during 3-5
+flow runs before committing to a subagent implementation.
+
+See [[file:agent-hierarchy-design/intent-guardian.org][intent-guardian.org]] for full analysis.
+
+*** What NOT to build
+
+- *Three-tier hierarchy:* impossible in Claude Code (subagents can't
+  launch subagents), and not justified for <50 agents
+- *Full orchestrator:* the flow steps already ARE the orchestrator;
+  duplicating this in a subagent is wasteful
+- *Summarizer manager:* loses signal; the user should see findings
+  directly
+- *Ambiguity shield:* the "telephone game" anti-pattern; workers
+  should read the raw intake
+
+** Decision
+
+Pending.
+
+** Open Questions
+
+1. Should the Review Collator produce a brief review summary for
+   the user (3-5 lines) in addition to the per-finding review.org?
+2. What structured output format should reviewers use to make
+   consolidation reliable?
+3. Should the Review Collator have access to the design doc for
+   lightweight design-fidelity checking during consolidation?
+4. How should the collator handle excessively verbose or off-topic
+   reviewer outputs?
+5. Should Steward findings always be [Critical], or could some be
+   [Auto]? Always-Critical prevents auto-resolve from dismissing
+   intent concerns, but also means every Steward flag requires user
+   input.
+6. How to distinguish drift (bad) from evolution (neutral/good)?
+   The Steward must avoid flagging deliberate scope expansion that
+   the user would approve.
+7. Should S1-S4 all be implemented at once, or start with S2 only
+   (highest single value)?

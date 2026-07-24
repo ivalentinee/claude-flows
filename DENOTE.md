@@ -387,6 +387,8 @@ All flows MUST use these exact `**` headings in design artifacts:
 
 | Heading                    | Required? |
 |----------------------------|-----------|
+| `** Original Prompt`       | Yes       |
+| `** Steering`              | Yes       |
 | `** Goal`                  | Yes       |
 | `** Constraints`           | Yes       |
 | `** Preserved Invariants`  | Optional  |
@@ -401,6 +403,7 @@ All flows MUST use these exact `**` headings in design artifacts:
 
 | Heading                    | Required? |
 |----------------------------|-----------|
+| `** Original Prompt`       | Yes       |
 | `** Question`              | Yes       |
 | `** Context`               | Yes       |
 | `** In Scope`              | Yes       |

@@ -155,6 +155,20 @@ they know; empty sections are fine.
 #+STARTUP: overview
 * <Feature Name>
 
+** Original Prompt
+(Verbatim copy of the user's chat message that triggered this flow.
+Preserves raw intent — urgency, scope hints, context — that the
+Goal section may formalize away. Used by the Steward for intent
+drift detection. Set once at init, never modified.)
+
+** Steering
+(Append-only log of user messages during the flow that change
+direction, add scope, constrain approach, or redirect focus.
+Claude appends timestamped entries as they happen. Not every user
+message is steering — "continue", "yes", "finalize" are not.
+Only messages that alter the trajectory of the work.
+Used by the Steward alongside Original Prompt for drift detection.)
+
 ** Goal
 (What this feature should accomplish and why — the user problem
 it solves or the technical need it addresses.)
@@ -268,9 +282,9 @@ Constraints, or Acceptance Criteria should not become questions.
 Initialize `designs/<feature>-design/journal.org` with an
 "Iteration 1 — Author" entry.
 
-### Step 2 — Critic + Boundary Analyst (parallel)
+### Step 2 — Critic + Boundary Analyst + Steward (parallel)
 
-Launch both subagents in parallel. Both read the design doc,
+Launch all three subagents in parallel. All read the design doc,
 questions, and the same source files.
 
 **Critic subagent:**
@@ -291,6 +305,22 @@ questions, and the same source files.
   boundaries, interfaces, formalization recommendations, distillation
   opportunities, independence assessments.
 - May add items to `questions.org` (tagged).
+- Append journal entry.
+
+**Steward subagent (S1 — intent check):**
+- Re-read the intake (Original Prompt, Steering log, Goal,
+  Constraints, Acceptance Criteria, Preserved Invariants) and compare
+  against the Author's Design.
+- Check: "If this design were implemented as proposed, would it
+  solve the problem described in Goal? Is every Constraint honored?
+  Is every Acceptance Criterion addressed?"
+- Output one of:
+  - *Pass:* design aligns with intake. (No action.)
+  - *Drift:* specific divergence added to `criticism.org` tagged
+    `[Critical]` with `*Source:* Steward (intent check)`.
+  - *Annotation:* note in `journal.org` tracking observed evolution.
+- The Steward does NOT critique design quality, suggest alternatives,
+  or make autonomous decisions. It only checks intent alignment.
 - Append journal entry.
 
 ### Step 3 — Auto-resolve
@@ -333,6 +363,15 @@ Then auto-resolve any new `[Auto]` items. Repeat until either:
 **Convergence check:** report net change per iteration. If an
 iteration produces more new items than it resolves, flag this — the
 feature may need splitting.
+
+**Steward check (S2 — post-auto-resolve intent check).** After the
+final auto-resolve iteration, run the Steward: re-read the intake
+and compare against the current design state. This is the
+highest-value single intervention point — auto-resolve loops are
+where most intent drift accumulates (each resolution is individually
+reasonable but the aggregate can shift direction). Output goes to
+`criticism.org` as `[Critical]` if drift detected, or `journal.org`
+as annotation if evolution is observed but alignment holds.
 
 ### Step 5 — Escalate (if Critical items exist)
 
@@ -392,7 +431,9 @@ Each reviewer produces a structured report with severity ratings
   Boundary Analyst re-evaluation, then re-check convergence
 
 After the review is clean (no Critical findings, all High+ addressed),
-proceed to Step 7.
+run **Steward check (S3)**: did addressing reviewer findings shift
+the design's scope away from the original intake? If drift detected,
+return to Step 5 (escalate). Otherwise proceed to Step 7.
 
 ### Step 7 — Finalize design
 
@@ -499,8 +540,27 @@ an adversarial stance:
 | 9 | **Code Clarity Reviewer** | Self-documenting quality: naming reveals intent (not just consistent), types express constraints, comments explain "why" not "what", control flow is self-evident. Check against CODE-QUALITY.md "Self-Documenting Code" checklist |
 
 Each produces a structured report (Critical / High / Medium / Low /
-Info). Claude collates and deduplicates into `review.org` in the
-working directory.
+Info).
+
+**Step 10b — Review Collator.** Launch a Review Collator subagent
+that reads all 9 reviewer reports and produces a consolidated
+`review.org`. The collator:
+
+- **Deduplicates**: merges semantically equivalent findings from
+  different reviewers into single entries (noting which reviewers
+  flagged them)
+- **Resolves severity**: when reviewers disagree on severity for the
+  same finding, picks the highest
+- **Flags conflicts**: when reviewers make contradictory
+  recommendations, lists both with a `*Conflict:*` marker — does
+  NOT resolve them
+- **Enforces structure**: consistent format (severity / finding /
+  affected files / recommendation) for every entry
+
+The collator does NOT suppress findings — everything passes through.
+It does NOT evaluate quality or make judgment calls. It is a
+mechanical post-processor that saves the main conversation from
+parsing 9 independent reports.
 
 ### Step 11 — Fix
 
@@ -511,6 +571,14 @@ Read `review.org`. For each issue:
 **Trailing Abstraction Minimalist check** on changed functions.
 
 Re-run `mix paranoid`.
+
+**Steward check (S4 — pre-user-review intent check).** Does the
+implementation, as built, solve the problem described in the original
+Goal? Are all Acceptance Criteria met by actual code? This is the
+last check before the user reviews — it catches cases where the
+Design Fidelity Reviewer validated the implementation against a
+design that itself had drifted. If drift detected, report to user
+alongside the review plan.
 
 ### Step 12 — Review plan + review notes
 
@@ -696,9 +764,10 @@ to know the flow's internal structure.
 
 Phase 1: Design
   Step 1: Author (reads intake) ───────────────────┐
-  Step 2: Critic + Boundary Analyst (parallel) ─────┤
+  Step 2: Critic + Boundary Analyst + Steward S1 ──┤
   Step 3: Auto-resolve [Auto] items ────────────────┤
   Step 4: Auto-loop (up to 3x) ◄───────────────────┘
+       │ + Steward S2 (intent check after final loop)
        │
        ├─ 0 Critical items ─────────────────────────┐
        │                                             │
@@ -710,6 +779,7 @@ Phase 1: Design
        ◄─────────────────────────────────────────────┘
        │
   Step 6: Design review (MANDATORY, 7 reviewers)
+       │ + Steward S3 (intent check after review)
        │
        ├─ Critical findings ──► Step 5 (escalate)
        └─ Clean
@@ -721,8 +791,10 @@ Phase 1: Design
 Phase 2: Implementation
   Step 8: Plan (module relationships + build order)
   Step 9: Implement + tests + mix paranoid
-  Step 10: Self-review (MANDATORY, 8 reviewers)
+  Step 10: Self-review (MANDATORY, 9 reviewers)
+  Step 10b: Review Collator (dedup + severity + conflicts)
   Step 11: Fix + mix paranoid
+       │ + Steward S4 (intent check before user review)
   Step 12: Review plan + notes ──► wait for user
   Step 13: User review loop ◄──── loop until clean
   Step 14: Finalize implementation (delete -design/)

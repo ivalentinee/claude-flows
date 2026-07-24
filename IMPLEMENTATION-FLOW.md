@@ -244,9 +244,14 @@ Each subagent reads the diff from step 2 and all relevant source files
 but makes **no edits**. Each produces a structured report with severity
 ratings (Critical / High / Medium / Low / Info).
 
-Claude collates and deduplicates the reports into
-`review.org` in the feature documentation directory. This file
-persists — the user may consult it to understand what was auto-fixed.
+**Step 3b — Review Collator.** Launch a Review Collator subagent
+that reads all reviewer reports and produces a consolidated
+`review.org`. The collator deduplicates semantically equivalent
+findings, resolves severity disagreements (picks highest), flags
+contradictory recommendations with `*Conflict:*` markers, and
+enforces consistent format. It does NOT suppress findings or make
+judgment calls. The resulting `review.org` persists — the user may
+consult it to understand what was auto-fixed.
 
 ### 4. Fix — automatic after step 3
 
