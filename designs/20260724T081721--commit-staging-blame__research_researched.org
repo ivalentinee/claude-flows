@@ -1,0 +1,209 @@
+#+STARTUP: overview
+#+title:      Research: Commit Staging Strategy — Blame Preservation Balance
+#+date:       [2026-07-24 Thu 08:17]
+#+filetags:   :research:researched:commits:git:blame:staging:
+#+identifier: 20260724T081721
+#+signature:
+#+deferred:
+
+* Research: Commit Staging Strategy — Blame Preservation Balance
+
+** Original Prompt
+I've put a thought to it, and there is a topic to research: "blame
+preservation". In the last few years I personally was steering towards
+fewer larger commits for one particular reason: when "git blame" is
+run for any specific line of code, I would rather get a commit message
+of "feature <feature description>" rather than "changing algo X to Y".
+So, my feature commit stages would usually look like "prepare for
+feature X", "feature X <scenario A>", "feature X <scenario B>". It
+may look like it's about commit messaging, but that's not the point:
+when a single commit encompasses some concept implemented in full git
+blame becomes more useful (no feature-by-issue-id lookup, better
+change coupling). The ultimate goal for the research would be to find
+a balancing change to the commit staging strategy that would retain
+the "clean & atomic" principle, yet steer it towards "git blame first"
+approach. Basically, when staging commits, the first question to ask
+is "would git blame in 1 year give a clear answer on why this change
+was introduced and what other changes are coupled with it?".
+
+** Steering
+
+** Question
+How should the commit staging strategy balance "clean & atomic commits"
+with "git blame gives useful answers in 1 year"? What is the right
+unit of atomicity — the mechanical change (rename, extract, alter algo)
+or the conceptual feature (the complete "why" behind a group of
+changes)?
+
+** Context
+The current flow (Step 8c) defines commit staging with four principles:
+atomic and minimal, prepare-then-change, no internal supersession,
+each commit passes tests. This produces fine-grained commits like:
+
+#+begin_example
+1. [rename] Rename FooModule to BarModule
+2. [prepare] Extract helper functions
+3. [core] Implement dispatch logic
+4. [test] Add e2e tests
+#+end_example
+
+The user's experience suggests a coarser staging that preserves git
+blame utility:
+
+#+begin_example
+1. Prepare for feature X (renames, extractions, scaffolding)
+2. Feature X: scenario A (complete concept, blame-friendly)
+3. Feature X: scenario B (complete concept, blame-friendly)
+#+end_example
+
+The key tension: fine-grained commits are easier to review and revert,
+but coarser feature-concept commits make git blame more useful for
+understanding /why/ code exists.
+
+** In Scope
+- Git blame as a documentation tool (not just a debugging tool)
+- The right unit of "atomic" — mechanical vs conceptual
+- How other projects/teams approach this trade-off
+- A revised commit staging heuristic for the flow system
+- Interaction with the "no internal supersession" principle
+
+** Out of Scope
+- Commit message formatting conventions (the issue is granularity, not
+  messages)
+- Squash/rebase workflows (the staging plan should produce the right
+  commits from the start, not require post-hoc squashing)
+- CI/CD implications
+
+** Evaluation Criteria
+1. Git blame utility: does blame show "why" or "what"?
+2. Review quality: can each commit be reviewed independently?
+3. Revert safety: can a commit be reverted without breaking things?
+4. Coupling clarity: does the commit boundary show what changes together?
+
+** Known Leads
+- Current Step 8c commit staging principles
+- User's personal pattern: "prepare for X", "feature X: scenario A"
+- Git blame as documentation (web search)
+- Conventional commits and semantic versioning patterns
+
+** Findings
+
+Full findings in =commit-staging-blame-design/findings.org=.
+Research journal in =commit-staging-blame-design/journal.org=.
+
+*** F1. "Atomic" universally means logical, not mechanical
+Every source consulted — Linux kernel, Git project, LeanIX, Medium,
+DEV Community, and more — defines an atomic commit as "one logical
+change," not "one mechanical operation." The kernel explicitly says
+a single logical change across 20 files is ONE patch. The current
+flow's Step 8c text actually agrees ("conceptually dense or
+heavily-coupled changes go in a single commit") but the example
+contradicts it by splitting into four mechanical commits.
+
+*** F2. Blame serves documentation more than debugging
+The community increasingly uses blame to understand /why/ code exists,
+not just /who/ broke it. Bojan Stipic: "Future git-blame users will
+want to find a useful commit that explains a meaningful change."
+OneUpTime: "not to find fault but to find context." Fine-grained
+mechanical commits degrade this use case — "Extract helper functions"
+tells you nothing about why.
+
+*** F3. Preparatory refactoring is a mindset, not a commit strategy
+Fowler's "two hats" and Beck's "make the change easy, then make the
+easy change" are about developer activity separation, not commit
+boundaries. You can wear both hats sequentially while producing one
+prepare commit and one feature commit. The key constraint from the
+kernel: don't move code AND modify it in the same commit (technical
+limitation of diff tracking).
+
+*** F4. .git-blame-ignore-revs is necessary but insufficient
+Handles formatting/linting commits well. Cannot handle renames,
+extractions, or structural refactoring. The core problem of "Extract
+helper functions" polluting blame must be solved by commit boundaries,
+not blame configuration.
+
+*** F5. Commit boundaries define change coupling
+Tornhill's change-coupling analysis uses commits as coupling units.
+Fine-grained commits produce noisy coupling data (a rename couples
+every file that references the entity). Conceptual commits produce
+meaningful coupling data (files implementing scenario A are coupled).
+Blame-as-coupling-documentation: everything in one commit changed
+together because it implements the same concept.
+
+*** F6. Tests belong with their implementation
+Separating tests into their own commit breaks the coupling signal.
+Blame on test code should show the same feature commit as blame on
+implementation code, confirming their relationship.
+
+** Comparison
+
+| Property         | Fine-grained mechanical   | Conceptual (proposed)    |
+|------------------+---------------------------+--------------------------|
+| Blame utility    | Low (shows "what")        | High (shows "why")       |
+| Review ease      | Easy (small diff)         | Moderate (larger diff)   |
+| Revert safety    | Risky (partial feature)   | Safe (full concept)      |
+| Bisect utility   | Higher (narrow window)    | Adequate (wider window)  |
+| Coupling clarity | Low (scattered)           | High (co-located)        |
+| Test locality    | Separate from code        | Coupled with code        |
+| Supersession     | Implicit (later commits   | None (each commit is     |
+|                  | contextualize earlier)    | self-contained)          |
+
+The reviewability concern is somewhat overstated for this project:
+the flow has a self-review step, and AI-assisted development means
+the author can review any size diff. This is not kernel-style
+mailing-list patch review.
+
+The bisect concern is real but minor: conceptual commits are still
+well-bounded (one scenario, not the whole feature), so bisect still
+narrows effectively.
+
+** Recommendation
+
+Revise Step 8c to redefine the commit atom from mechanical operation
+to complete concept. Specific changes:
+
+1. *Blame-first atomicity:* each commit encompasses one complete idea.
+   First question: "will git blame in one year show WHY this code
+   exists?"
+
+2. *Consolidated preparation:* all preparatory refactoring for a
+   feature goes in ONE prepare commit (not one per rename/extraction).
+   Skip the prepare commit if preparation is minimal.
+
+3. *Tests with their concept:* tests live in the same commit as the
+   code they test.
+
+4. *Conciseness test:* if the commit message lists multiple unrelated
+   things, split. If it describes a mechanical operation with no
+   conceptual meaning, merge with the conceptual commit it supports.
+
+5. *Fine-grained exception:* keep a separate commit only when the
+   mechanical change IS a meaningful concept on its own (independent
+   refactoring, separable bug fix, or rename-then-modify for diff
+   tracking).
+
+Example revision:
+#+begin_example
+Current:
+1. [rename] Rename FooModule to BarModule
+2. [prepare] Extract helper functions
+3. [core] Implement dispatch logic
+4. [test] Add e2e tests
+
+Proposed:
+1. Prepare for event-driven dispatch (rename, extract, scaffold)
+2. Event-driven dispatch: lifecycle management (impl + tests)
+#+end_example
+
+** Decision
+
+Pending user review.
+
+** Open Questions
+1. Should the prepare commit be added to .git-blame-ignore-revs by
+   default, or only when it's purely mechanical?
+2. For very large features with 5+ scenarios, should there be a size
+   guideline for individual scenario commits?
+3. Should the existing Step 8c example in FULL-FLOW.md be updated
+   immediately, or should this wait for the next feature implementation
+   to validate the approach?

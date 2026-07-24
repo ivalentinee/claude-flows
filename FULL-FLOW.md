@@ -497,29 +497,43 @@ existing codebase. Write section 1:
 - Step order, parallel opportunities, integration checkpoints,
   formal specs to produce first
 
-**Step 8c — Commit staging.** Structure the plan into atomic commits.
-Each commit must have a clear, stated goal. Core principles:
+**Step 8c — Commit staging.** Structure the plan into blame-friendly
+atomic commits. The atom is one **complete concept**, not one
+mechanical operation. First question for every commit boundary:
+"will `git blame` in one year show WHY this code exists?"
 
-- **Atomic and minimal:** conceptually dense or heavily-coupled
-  changes go in a single commit. No algorithmic change should spill
-  across multiple commits.
-- **Prepare-then-change:** renaming commits (files, types, variables)
-  come before the commit that changes algorithmic behavior. Each
-  "preparing for change X" commit is valid on its own.
+Core principles:
+
+- **Blame-first atomicity:** each commit encompasses one complete
+  idea — the full "why" behind a group of changes. Tests live in the
+  same commit as the code they test. A commit message that describes
+  a mechanical operation with no conceptual meaning ("extract helper
+  functions") signals a wrong boundary — merge it with the conceptual
+  commit it supports.
+- **Consolidated preparation:** all preparatory refactoring for a
+  feature (renames, extractions, scaffolding) goes in ONE prepare
+  commit, not one per operation. Skip the prepare commit entirely if
+  preparation is minimal. Exception: keep a separate commit when
+  moving code AND modifying it (diff tracking limitation).
 - **No internal supersession:** within the same feature branch, no
   commit should fix or supersede changes from a previous commit.
   The plan reads as "I knew what I was building from the beginning."
 - **Each commit compiles and passes tests.** No intermediate broken
   state.
+- **Conciseness test:** if the commit message lists multiple unrelated
+  things, split. If it describes something with no standalone
+  conceptual meaning, merge.
+- **Fine-grained exception:** keep a separate commit only when the
+  mechanical change IS a meaningful concept on its own (independent
+  refactoring, separable bug fix).
 
 The Plan subagent produces a numbered commit list in `impl-plan.org`
 section 3:
 ```
 *** Commit staging
-1. [rename] Rename FooModule to BarModule across all references
-2. [prepare] Extract helper functions for new dispatch logic
-3. [core] Implement event-driven dispatch with pool integration
-4. [test] Add e2e tests for dispatch queue lifecycle
+1. Prepare for event-driven dispatch (rename, extract, scaffold)
+2. Event-driven dispatch: lifecycle management (impl + tests)
+3. Event-driven dispatch: error recovery (impl + tests)
 ```
 
 ### Step 9 — Implement

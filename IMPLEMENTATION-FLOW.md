@@ -114,11 +114,12 @@ should be written before any implementation code, because other
 modules depend on them.)
 
 ** Commit Staging
-(Numbered list of atomic commits, each with a stated goal.
-Principles: atomic and minimal — no algo change across commits;
-prepare-then-change — renames before behavior changes; no internal
-supersession — no commit fixes a previous commit in the same branch;
-each commit compiles and passes tests.)
+(Numbered list of blame-friendly atomic commits. The atom is one
+complete concept, not one mechanical operation. First question for
+each boundary: "will git blame in one year show WHY this code
+exists?" Tests live in the same commit as the code they test. All
+preparation consolidated into one prepare commit. No internal
+supersession. Each commit compiles and passes tests.)
 ```
 
 ### 2. Implement — automatic after step 1
