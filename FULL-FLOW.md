@@ -497,6 +497,31 @@ existing codebase. Write section 1:
 - Step order, parallel opportunities, integration checkpoints,
   formal specs to produce first
 
+**Step 8c — Commit staging.** Structure the plan into atomic commits.
+Each commit must have a clear, stated goal. Core principles:
+
+- **Atomic and minimal:** conceptually dense or heavily-coupled
+  changes go in a single commit. No algorithmic change should spill
+  across multiple commits.
+- **Prepare-then-change:** renaming commits (files, types, variables)
+  come before the commit that changes algorithmic behavior. Each
+  "preparing for change X" commit is valid on its own.
+- **No internal supersession:** within the same feature branch, no
+  commit should fix or supersede changes from a previous commit.
+  The plan reads as "I knew what I was building from the beginning."
+- **Each commit compiles and passes tests.** No intermediate broken
+  state.
+
+The Plan subagent produces a numbered commit list in `impl-plan.org`
+section 3:
+```
+*** Commit staging
+1. [rename] Rename FooModule to BarModule across all references
+2. [prepare] Extract helper functions for new dispatch logic
+3. [core] Implement event-driven dispatch with pool integration
+4. [test] Add e2e tests for dispatch queue lifecycle
+```
+
 ### Step 9 — Implement
 
 **Style calibration:** Before writing code, sample the user's recent
@@ -674,7 +699,12 @@ design doc remains as the permanent record.
 
 ### Step 15 — Commit
 
-Create a commit following the project's existing commit convention.
+Follow the commit staging plan from Step 8c. Create each commit
+as a separate, atomic unit with its own goal. Stage files precisely
+per commit — do not batch everything into one commit unless the
+staging plan has a single entry. Each commit should compile and pass
+tests independently. Use the project's existing commit message
+convention.
 
 ---
 

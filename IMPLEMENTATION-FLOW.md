@@ -112,6 +112,13 @@ and can be tested together.")
 (Which JSON Schema / OpenAPI / AsyncAPI / behaviour definitions
 should be written before any implementation code, because other
 modules depend on them.)
+
+** Commit Staging
+(Numbered list of atomic commits, each with a stated goal.
+Principles: atomic and minimal — no algo change across commits;
+prepare-then-change — renames before behavior changes; no internal
+supersession — no commit fixes a previous commit in the same branch;
+each commit compiles and passes tests.)
 ```
 
 ### 2. Implement — automatic after step 1
@@ -367,7 +374,12 @@ Suggest **`commit`**.
 
 ### 8. Commit — `commit`
 
-Create a commit following the project's existing commit convention.
+Follow the commit staging plan from `impl-plan.org` section
+"Commit Staging." Create each commit as a separate, atomic unit
+with its own goal. Stage files precisely per commit — do not batch
+everything into one commit unless the staging plan has a single
+entry. Each commit should compile and pass tests independently.
+Use the project's existing commit message convention.
 
 ### 9. Retrospective (optional) — `retro`
 
