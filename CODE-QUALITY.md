@@ -120,6 +120,31 @@ code. Five principles:
 **Execution over reasoning.**
 - When you can test a claim by running code, run it. Don't reason
   about what "would" happen — verify it.
+- Experimentation is discovery, not just verification. When you
+  don't understand what code does, the first move is to run it —
+  not to read it harder.
+
+**Mutate to understand.**
+- Code is not an immutable artifact during investigation. To
+  understand what a value does, change it and run the code. To
+  understand a condition, invert it and observe. To understand a
+  function's role, remove its call and see what breaks.
+- This is the scientific method applied to code: change one
+  variable, observe the effect, form a grounded understanding.
+- Always restore changes after investigation (`git checkout` or
+  `git stash`), but never hesitate to make them.
+
+**Isolate and run (code is voxels, not a monolith).**
+- Any piece of code can be run in isolation. The whole project is
+  never the minimum runnable unit.
+- To understand `algorithm.js`, create a throwaway 10-line script
+  that imports it, feeds it sample data, and prints the result.
+  Don't run the entire application.
+- To understand an Elixir module, open `iex -S mix` and call its
+  functions directly with sample arguments.
+- The cost of creating a throwaway caller is almost always less
+  than the cost of reasoning about the code's behavior from
+  reading alone.
 
 **Separate generator and verifier.**
 - Never trust yourself to both generate and validate code. Write

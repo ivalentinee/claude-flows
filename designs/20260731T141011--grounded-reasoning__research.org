@@ -120,9 +120,12 @@ Summary of key findings:
    validate. Reflexion (execution-based self-correction) improves
    pass@1 by 11 points on HumanEval.
 
-5. *Five grounding principles* emerge: (a) execution over reasoning,
-   (b) separate generator and verifier, (c) claims require extractive
-   grounds, (d) freshness discipline / TTL for facts, (e) avoidance
+5. *Seven grounding principles* emerge: (a) execution over reasoning
+   (experimentation as discovery), (b) mutate to understand (code is
+   not immutable during investigation), (c) isolate and run (code is
+   voxels, not a monolith — any piece can be exercised independently),
+   (d) separate generator and verifier, (e) claims require extractive
+   grounds, (f) freshness discipline / TTL for facts, (g) avoidance
    requires burden of proof.
 
 6. *Concrete flow modifications* proposed: spike gates in design
@@ -208,20 +211,32 @@ only justified for high-risk features.
 "AI generates code" to "AI generates hypotheses that reality
 validates."
 
-*** Five grounding principles for DENOTE.md / CODE-QUALITY.md
+*** Seven grounding principles for CODE-QUALITY.md
 
 1. *Execution over reasoning:* when you can test a claim by running
    code, run it. Don't reason about what "would" happen.
-2. *Separate generator and verifier:* never trust Claude to both
+   Experimentation is discovery, not just verification.
+2. *Mutate to understand:* code is not immutable during investigation.
+   Change a value and run the code to understand what it does. Invert
+   a condition and observe. Remove a call and see what breaks. The
+   scientific method applied to code: change one variable, observe
+   effect, form grounded understanding. Always restore after
+   investigation.
+3. *Isolate and run (code is voxels, not a monolith):* any piece of
+   code can be run in isolation with a throwaway caller script. The
+   whole project is never the minimum runnable unit. The cost of
+   creating a 10-line spike that imports and exercises one module is
+   almost always less than reasoning about its behavior from reading.
+4. *Separate generator and verifier:* never trust Claude to both
    generate and validate. Write code, then run tests — separate
    steps, separate verification.
-3. *Claims require evidence:* reviewer findings must cite specific
+5. *Claims require evidence:* reviewer findings must cite specific
    evidence (file:line, test output, error message). "This might
    cause a race condition" without evidence is not a valid finding.
-4. *Freshness discipline:* re-read files before making claims about
+6. *Freshness discipline:* re-read files before making claims about
    their content. If more than ~5 steps have passed since reading a
    file, re-read it before asserting facts about it.
-5. *Avoidance requires proof:* "pre-existing issue", "not worth
+7. *Avoidance requires proof:* "pre-existing issue", "not worth
    pursuing", "unlikely edge case" are claims that require evidence.
    If you have not tested the claim, you cannot make it.
 
