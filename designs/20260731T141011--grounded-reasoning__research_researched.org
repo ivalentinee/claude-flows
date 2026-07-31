@@ -1,7 +1,7 @@
 #+STARTUP: overview
 #+title:      Research: Grounded Reasoning — Reality-Testing in AI-Assisted Development
 #+date:       [2026-07-31 Thu 14:10]
-#+filetags:   :research:reasoning:grounding:tdd:prototyping:flows:
+#+filetags:   :research:researched:reasoning:grounding:tdd:prototyping:flows:
 #+identifier: 20260731T141011
 #+signature:
 #+deferred:
@@ -357,31 +357,86 @@ hand, read the artifact rather than reasoning from memory.*
 
 ** Decision
 
-Pending.
+All open questions resolved.
+
+*** Spike gate: default-on for new technology/approach
+
+Default-on when introducing new external technology, library,
+algorithm, or architectural approach. Also fires when the Author
+identifies a testable assumption.
+
+The spike tests the technology *in isolation* (without app
+integration) to verify: (a) it works, (b) it provides the claimed
+properties.
+
+Examples:
+- New DB or library → spike script exercising core API
+- New algorithm for performance → benchmark spike comparing it
+  against the naive/current approach
+- GenStage/:gen_statem applicability → write a prototype file and
+  compare against a plain GenServer prototype (or the existing
+  implementation)
+
+Skip when: the feature is purely structural (reorganizing existing
+code) with no new technology or untested assumption.
+
+*** TDD: behavioral commits only
+
+Tests-first applies to commits that change behavior. Rename,
+scaffolding, and refactoring commits do not get new tests — strict
+TDD produces enough tests that renames/refactors are already covered
+by existing tests. If a refactoring breaks existing tests, that IS
+the grounding signal.
+
+*** Evidence: includes articulable reasoning, not just execution
+
+Evidence is not limited to running code. A structural observation
+("this module has mixed concerns") is grounded when the concerns
+are *enumerated in writing* without contradicting other documented
+facts.
+
+The test: can the claim be put in words that survive scrutiny? "This
+module has mixed concerns" requires listing which concerns and why
+they conflict. Writing them down IS the evidence — if they can't be
+articulated without contradiction, the claim is ungrounded.
+
+So the evidence spectrum is:
+- Execution evidence: test output, benchmark, error reproduction
+- Articulable evidence: written enumeration of concerns/properties
+  that is internally consistent and cites specific code
+- No evidence: "I think this might..." → ungrounded
+
+*** Non-code projects: peer-reference + property enumeration
+
+Design-only arguments are grounded by peer-reference: citing known
+patterns, their documented trade-offs, and mapping those against the
+specific properties required.
+
+Example: "Onion architecture has problems X, Y and Z (cited), so
+it's not applicable here because properties A, B and C must be
+fulfilled (enumerated from intake), thus the recommendation is Saga
+pattern (which provides A, B and C because...)."
+
+The grounding mechanism: enumerate required properties first (same
+as property-first test design, but for architecture), then evaluate
+approaches against those properties with cited evidence.
+
+*** Avoidance: same verification standard as change
+
+"Pre-existing issue" is verified the same way as "behavior changed":
+with real-world proof.
+
+Example: "This line in main branch is the same as it is here
+(=git diff main -- file.ex= shows no change). It is the reason for
+the issue (changing it makes the problem go away, =git stash= + test
+confirms). Therefore the issue is pre-existing."
+
+The principle: *behavior unchanged requires the same evidence as
+behavior changed.* If you claim something is pre-existing, prove it
+by showing the code is identical in main AND that it causes the
+issue there too. If you can't run that check in <5 minutes, state
+the claim as unverified.
 
 ** Open Questions
 
-1. *Spike gate applicability:* how often do design-phase features
-   have a testable technical assumption? If most features are
-   structural, the spike gate fires rarely. Should it be default-on
-   or triggered by a flag in the intake?
-
-2. *TDD strictness:* should the tests-first rule be mandatory for
-   every commit, or just for core/behavioral commits (skipping
-   renames, scaffolding)?
-
-3. *Evidence threshold for reviewers:* requiring evidence for every
-   High/Critical finding adds work. Should this apply only to
-   findings that make empirical claims ("this will cause X"), not
-   structural observations ("this module has mixed concerns")?
-
-4. *Non-code projects:* how does grounding work for research flows
-   or design-only flows where there is no code to run? The spike
-   gate can validate external claims (does this library actually
-   support X?), but what grounds a design-phase argument about
-   module boundaries?
-
-5. *Avoidance detection sensitivity:* the phrase list ("pre-existing
-   issue", etc.) could produce false positives when Claude legitimately
-   identifies a known issue. How to distinguish genuine identification
-   from avoidance?
+All resolved.
