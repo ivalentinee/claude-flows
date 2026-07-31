@@ -543,13 +543,20 @@ commits (`git log --author` + read 1-2 touched files) to calibrate
 naming, structure, and idiom choices. The user's code is the
 authoritative style reference. Do this silently.
 
-Follow the plan. For each step:
-1. Define interfaces and formal specs first
-2. Write the implementation
-3. Write tests (prefer e2e with real infrastructure; only stub
-   non-replicable external services)
+Follow the commit staging plan. For each commit:
 
-Run the project's test/lint suite (`mix paranoid`).
+1. **Enumerate properties** — list the specific behavioral properties
+   this commit should validate (Beck's "test list"). For each property,
+   decide: test now (P0-P1), test later (P2), or not tested (with
+   reason). This is the specification for what "success" means.
+2. **Write tests** targeting the enumerated P0-P1 properties (prefer
+   e2e with real infrastructure; only stub non-replicable services)
+3. **Run tests** — verify they fail (the behavior doesn't exist yet)
+4. **Implement** — define interfaces/specs first, then the minimum
+   code to pass the tests
+5. **Run tests** — verify they pass
+
+Run the project's test/lint suite (`mix paranoid`) after each commit.
 
 **Trailing Abstraction Minimalist check.** After implementation,
 run a lightweight Abstraction Minimalist subagent on newly
@@ -581,6 +588,13 @@ an adversarial stance:
 Each produces a structured report (Critical / High / Medium / Low /
 Info).
 
+**Evidence requirement:** every finding rated High or Critical must
+include a `*Grounds:*` field citing specific evidence — file path +
+line number, test output, error reproduction, or benchmark result.
+Findings that make empirical claims ("this will cause X") without
+evidence are downgraded to Info. Structural observations ("this
+module has mixed concerns") do not require empirical evidence.
+
 **Step 10b — Review Collator.** Launch a Review Collator subagent
 that reads all 9 reviewer reports and produces a consolidated
 `review.org`. The collator:
@@ -593,8 +607,10 @@ that reads all 9 reviewer reports and produces a consolidated
 - **Flags conflicts**: when reviewers make contradictory
   recommendations, lists both with a `*Conflict:*` marker — does
   NOT resolve them
+- **Checks evidence**: findings rated High or Critical without a
+  `*Grounds:*` field are flagged with `*Missing evidence*`
 - **Enforces structure**: consistent format (severity / finding /
-  affected files / recommendation) for every entry
+  grounds / affected files / recommendation) for every entry
 
 The collator does NOT suppress findings — everything passes through.
 It does NOT evaluate quality or make judgment calls. It is a

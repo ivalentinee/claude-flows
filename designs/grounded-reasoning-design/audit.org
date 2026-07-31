@@ -1,0 +1,711 @@
+#+STARTUP: overview
+* Grounded Reasoning Audit — Flow System Analysis
+
+*Generated:* 2026-07-31
+*Scope:* Systematic analysis of FULL-FLOW.md, RESEARCH-FLOW.md, IMPLEMENTATION-FLOW.md, and CODE-QUALITY.md for grounding gaps.
+*Methodology:* For each step, classify as [GROUNDED], [REASONING], or [HYBRID], then identify where reality-checks could strengthen decisions.
+
+---
+
+** A. Grounding Map by Flow
+
+The three flows can be analyzed as: FULL-FLOW (combines design and implementation), RESEARCH-FLOW (research only), IMPLEMENTATION-FLOW (specialized implementation rules).
+
+*** FULL-FLOW Steps
+
+**** Phase 1: Design
+
+***** Step 1 — Author [HYBRID]
+- *Action:* Subagent reads intake (Goal, Constraints, References) and relevant source files. Writes Design section + questions.org.
+- *Grounded elements:* Reads real source files, References
+- *Reasoning elements:* Infers design from Goal/Constraints alone; no test against real behavior
+- *Reality check gap:* No validation that proposed design will compile/run. Author's design could contain:
+  - Missing imports or module definitions
+  - Signatures that don't match existing code
+  - Data flow that won't work in actual supervision tree
+- *Failure modes:*
+  - Deviation: Author's mental model of codebase differs from actual structure
+  - Fabrication: Author invents module relationships without checking supervision tree
+  - Avoidance: Author proposes abstract design avoiding specific architectural constraints
+
+***** Step 2 — Critic + Boundary Analyst + Steward S1 [REASONING]
+- *Action:* Three subagents read design, questions, source files. Critic writes criticism.org, Boundary Analyst writes boundary-context.org, Steward checks intent alignment.
+- *Grounded elements:* Read source files
+- *Reasoning elements:* Pure analysis — no tests run, no prototypes built
+- *Reality check gap:* Critic evaluates design assumptions without checking them against runtime behavior.
+  - Example: Critic might accept "we'll use ETS for caching" without checking if actual access patterns would cause contention
+  - Boundary Analyst might propose subsystem boundaries that don't reflect actual data flow
+- *Failure modes:*
+  - Deviation: Critic's understanding of existing patterns differs from how code actually behaves
+  - Fabrication: Critic asserts "this will be slow because X" without benchmarking current behavior
+  - Avoidance: Critic flags risks but doesn't verify they're real (e.g., "race conditions possible" → no attempt to construct actual scenario)
+
+***** Step 3 — Auto-resolve [REASONING]
+- *Action:* Process [Auto]-tagged items by deciding on resolutions based on codebase context + patterns. Update design, move items to resolved.org.
+- *Grounded elements:* Reads codebase context
+- *Reasoning elements:* Pure decision-making; no execution
+- *Reality check gap:* Auto-resolutions are pattern-based, not empirically validated.
+  - Example: "Use GenServer for X" based on "that's the established pattern" — no check that this specific X fits GenServer's semantics
+  - "Place module in supervision tree under parent Y" — no verification that parent exists or accepts children
+- *Failure modes:*
+  - Deviation: Established pattern doesn't apply to this case but resolver doesn't notice
+  - Fabrication: Resolver assumes context that isn't true ("we always do X this way" → but exception exists)
+  - Avoidance: Resolver accepts vague rationale ("it's simpler" → no analysis of actual complexity)
+
+***** Step 4 — Auto-loop (up to 3 iterations) [REASONING]
+- *Action:* Re-evaluate Critic + Boundary Analyst after auto-resolve. Re-resolve new [Auto] items. Steward S2 checks for intent drift.
+- *Grounded elements:* Reads updated design + resolved archive
+- *Reasoning elements:* Iterative reasoning; no code execution
+- *Reality check gap:* Loop assumes that re-evaluation converges to correctness. But ungrounded reasoning can loop indefinitely on false assumptions.
+  - Example: Each iteration "fixes" a concern, but the core assumption (e.g., "this module arrangement is correct") isn't validated against reality
+  - Steward S2 checks intent, not actual feasibility
+- *Failure modes:*
+  - Deviation: Each iteration moves design further from workability but closer to internal consistency
+  - Fabrication: Loop generates new concerns based on misunderstandings that could be resolved by compilation attempt
+  - Avoidance: Loop pauses before addressing real questions (e.g., "will this compile?")
+
+***** Step 5 — Escalate (if Critical items exist) [REASONING]
+- *Action:* If [Critical] items remain, create answers.org and wait for user input.
+- *Grounded elements:* None in this step itself
+- *Reasoning elements:* Pure escalation mechanism
+- *Reality check gap:* User answers Critical items from their own reasoning, not from running experiments. User's answers could themselves be ungrounded.
+- *Failure modes:*
+  - Deviation: User and Claude have different mental models of how the system will work
+  - Fabrication: User's answer is based on outdated understanding of codebase
+  - Avoidance: User defers technical decision ("you decide") but no reality check follows
+
+***** Step 5a — Process user answers [REASONING]
+- *Action:* Apply answers, validate with Validator subagent, Critic + Boundary Analyst re-evaluate, auto-resolve new items.
+- *Grounded elements:* Reads user answers
+- *Reasoning elements:* Validation + re-evaluation are all reasoning-based
+- *Reality check gap:* Validator subagent checks answers for vagueness/contradictions, not feasibility.
+  - Example: User says "use Redis for distributed cache" → Validator checks if answer is clear, doesn't test if Redis connection would work
+- *Failure modes:*
+  - Deviation: Answer is clear but wrong for this codebase
+  - Fabrication: Validator assumes answer is viable without checking deployment setup
+  - Avoidance: Validator skips feasibility ("that's implementation's job")
+
+***** Step 6 — Design review (MANDATORY) [REASONING]
+- *Action:* Launch 7 specialized reviewer subagents (Correctness, Edge Case, Integration, API, Test, Spec, Boundary). Each reads design + source code. No edits, structured reports only.
+- *Grounded elements:* Reviewers read source files and design
+- *Reasoning elements:* All analysis is reasoning-based; no tests run, no compilation attempted
+- *Reality check gap:* Reviewers validate design against code patterns, not against actual behavior.
+  - Correctness Reviewer might flag "missing operation" but can't verify that the operation's semantics are correct without running it
+  - Test Reviewer suggests test cases but doesn't execute them
+  - Spec Reviewer checks schema syntax, not whether actual code conforms at runtime
+- *Failure modes:*
+  - Deviation: Reviewer misreads code signature and accepts design that won't compile
+  - Fabrication: Reviewer asserts "this handles all edge cases" based on reading, not testing
+  - Avoidance: Reviewer notes "needs testing" but doesn't flag that current flow never tests
+
+***** Step 7 — Finalize design [REASONING]
+- *Action:* Consolidate design doc, run Finalization Verifier subagent, clean up working directory. Context Maintenance checks CLAUDE.md updates.
+- *Grounded elements:* Verifier diffs design + resolved archive + journal
+- *Reasoning elements:* Verification is document-based, not code-execution-based
+- *Reality check gap:* Finalization Verifier checks that decisions are represented in the doc, not that they're correct.
+- *Failure modes:*
+  - Deviation: Design doc is complete but describes something that won't work
+  - Fabrication: Verifier assumes completeness without testing against codebase
+  - Avoidance: Verifier skips feasibility ("that's implementation's job")
+
+*** Phase 2: Implementation
+
+***** Step 8 — Plan [REASONING]
+- *Action:* Module Relationship subagent describes topology. Plan subagent creates Step Order + Commit Staging. No code written.
+- *Grounded elements:* Reads finalized design + codebase
+- *Reasoning elements:* All planning is theoretical; no test of plan feasibility
+- *Reality check gap:* Plan might propose:
+  - Modules that can't coexist in the same supervision tree
+  - Dependencies that create cycles
+  - Commit boundaries that assume code will work that hasn't been tested
+  - Integration checkpoints that won't actually work
+- *Failure modes:*
+  - Deviation: Plan assumes module relationships that don't match actual codebase structure
+  - Fabrication: Plan assumes "step 3 depends on step 1" without checking if there's an actual blocker
+  - Avoidance: Plan defers risky decisions ("we'll figure it out during implementation")
+
+***** Step 8c — Commit staging [REASONING]
+- *Action:* Structure plan into atomic commits. First question: "will git blame show WHY?"
+- *Grounded elements:* None — purely conceptual atomicity
+- *Reasoning elements:* Conceptual coherence check
+- *Reality check gap:* Commit staging doesn't validate:
+  - Whether each commit will actually compile
+  - Whether tests will pass at each commit
+  - Whether the "conceptual atom" makes sense to someone reading git blame in reality
+- *Failure modes:*
+  - Deviation: Commit boundary seems atomic in theory but creates broken intermediate state
+  - Fabrication: Commit message describes "why" but the "why" is assumed, not verified
+  - Avoidance: Staging skips pre-implementation risk (e.g., circular dependency in implementation order)
+
+***** Step 9 — Implement [GROUNDED] ✓
+- *Action:* Write code per plan. Run tests. Run `mix paranoid` (project test/lint suite).
+- *Grounded elements:* **Test execution, linter feedback, code actually compiles and runs**
+- *Reasoning elements:* Style calibration (reasoning-based), design of implementation details
+- *Reality check:* ***This step is grounded.*** Code is tested, linted, verified to work.
+- *Weakness:* Tests are written by the same agent doing implementation; may have shared blind spots. "Trailing Abstraction Minimalist check" is lightweight and reasoning-based, not a full review.
+
+***** Step 9 — Style calibration [REASONING]
+- *Action:* Before coding, sample user's recent commits to calibrate naming/structure/idioms.
+- *Grounded elements:* Reads recent commit diffs
+- *Reasoning elements:* Pattern inference from reading (no execution)
+- *Reality check gap:* Calibration might misread patterns or miss context.
+  - Example: Coder sees "module uses Agent for state" → assumes "always use Agent" without noticing this specific case needs GenServer's supervised restarts
+- *Failure modes:*
+  - Deviation: Inferred pattern doesn't apply to this context
+  - Fabrication: Coder generalizes from one example
+  - Avoidance: Coder applies pattern without questioning fit
+
+***** Step 9 — Trailing Abstraction Minimalist check [REASONING]
+- *Action:* Lightweight Abstraction Minimalist subagent scans newly written functions for tier violations. Reports inline, fixes clear violations immediately.
+- *Grounded elements:* Reads code
+- *Reasoning elements:* Tier analysis is reasoning-based; no execution
+- *Reality check gap:* Check is "lightweight" and reasoning-only. May miss violations that show up under load or in real usage.
+  - Example: Function mixes "orchestration tier" with "data parsing tier" but the problem only manifests when data is malformed
+- *Failure modes:*
+  - Deviation: Tier violation exists but reasoner doesn't spot it
+  - Fabrication: Reasoner flags violation that doesn't actually cause issues in practice
+  - Avoidance: Check is lightweight by design, skips edge cases
+
+***** Step 10 — Self-review (MANDATORY) [REASONING]
+- *Action:* Launch 9 specialized reviewers in parallel (Design Fidelity, Correctness, Edge Case, Test, Spec, Style, Principles, Abstraction, Code Clarity). Each reads diff + source. No edits, structured reports.
+- *Grounded elements:* Reviewers have code to read
+- *Reasoning elements:* All analysis is reasoning-based; no additional tests run
+- *Reality check gap:* Reviewers analyze code without running it. Edge Case Reviewer might say "vulnerable to race condition X" without constructing a failing test case.
+- *Failure modes:*
+  - Deviation: Reviewer misreads code flow and accepts a bug
+  - Fabrication: Reviewer asserts "this will work" based on reading, not testing
+  - Avoidance: Reviewer defers to test suite ("tests will catch it") but tests are written by the same person
+
+***** Step 10b — Review Collator [REASONING]
+- *Action:* Read 9 reviewer reports. Deduplicate, resolve severity disagreements, flag conflicts. Enforce consistent format. No judgment calls, purely mechanical.
+- *Grounded elements:* Reads reviewer reports
+- *Reasoning elements:* Deduplication/severity merging logic
+- *Reality check gap:* Collator is mechanical; doesn't validate that findings are correct, only that they're formatted consistently.
+- *Failure modes:*
+  - Deviation: Merges two different findings into one, losing nuance
+  - Fabrication: Over-generalizes similar findings
+  - Avoidance: Collator is designed not to make judgment calls, so doesn't flag when two "conflicts" are both wrong
+
+***** Step 11 — Fix [HYBRID]
+- *Action:* Read review.org. For each issue: apply fix or escalate. Re-run `mix paranoid`. Steward S4 intent check.
+- *Grounded elements:* **Tests run after fixes, linter feedback**
+- *Reasoning elements:* Decision of what to fix, intent check
+- *Reality check:* Code is re-tested after fixes, so grounded partially. But fixes are decided by reasoning; no validation that fix strategy is right before implementation.
+- *Weakness:* Fixer might misinterpret a reviewer's finding and apply wrong fix; linter catches some mistakes but not logic errors.
+
+***** Step 11 — Steward S4 intent check [REASONING]
+- *Action:* Does implementation solve the original Goal? Are all Acceptance Criteria met by actual code?
+- *Grounded elements:* Reads actual implementation
+- *Reasoning elements:* Verification is reasoning-based; no test for each criterion
+- *Reality check gap:* Steward checks acceptance criteria against code by reading, not running.
+  - Example: Design says "search endpoint returns results in 100ms" → code might have the logic but Steward can't verify latency is achieved without benchmarking
+- *Failure modes:*
+  - Deviation: Steward misreads code and thinks criterion is met when it isn't
+  - Fabrication: Steward assumes acceptance criterion is met based on code structure
+  - Avoidance: Steward defers performance-related criteria ("that needs profiling")
+
+***** Step 12 — Review plan + review notes [REASONING]
+- *Action:* Create review-plan.org (changed files grouped by concern) and review-notes.org (empty, for user to fill). Wait for user.
+- *Grounded elements:* Reads diff from implementation
+- *Reasoning elements:* Grouping by concern is conceptual
+- *Reality check gap:* Plan groups are created by reasoning; no validation that grouping makes sense to someone actually reading the code.
+- *Failure modes:*
+  - Deviation: Groups files in a way that doesn't match logical concerns
+  - Fabrication: Asserts "this group of changes is coherent" without evidence
+  - Avoidance: Groups files too finely, making review tedious
+
+***** Step 13a — Apply user review fixes [HYBRID]
+- *Action:* For each note in review-notes.org, apply fix. Move to review-notes-resolved.org. Run `mix paranoid`.
+- *Grounded elements:* **Tests run after fixes**
+- *Reasoning elements:* Decision of how to interpret each note and what fix is needed
+- *Reality check:* Code is re-tested after fixes, so partially grounded. But interpretation of review notes is reasoning-based.
+- *Weakness:* Fixer might misinterpret user's intent; linter catches some mistakes but not all.
+
+***** Step 13b — Fix Validator subagent [REASONING]
+- *Action:* Read diff + review-notes.org + finalized design. Check: did fix address note? Did fix introduce regressions? Do changes match design?
+- *Grounded elements:* Reads code diff + design
+- *Reasoning elements:* All validation is reasoning-based; no additional tests beyond what was run in 13a
+- *Reality check gap:* Validator might miss subtle regressions or design deviations that don't show up in tests.
+- *Failure modes:*
+  - Deviation: Validator thinks fix is correct but regression exists
+  - Fabrication: Validator asserts "no regressions" based on reading, not full test suite
+  - Avoidance: Validator defers to test suite to catch everything
+
+***** Step 13c — Update review plan [REASONING]
+- *Action:* Update review-plan.org: uncheck modified files, update descriptions, add new files, move deleted files.
+- *Grounded elements:* None — purely file management
+- *Reasoning elements:* Conceptual tracking
+- *Reality check gap:* No validation that updated plan is still accurate or complete.
+- *Failure modes:*
+  - Deviation: Plan becomes out of sync with actual changes
+  - Fabrication: Description of changes is inaccurate
+  - Avoidance: Plan omits changes that should be reviewed
+
+***** Step 13d — Pattern capture [REASONING]
+- *Action:* Review resolved corrections. For each: is it a convention (save to memory) or one-off (skip)?
+- *Grounded elements:* Reads resolved corrections
+- *Reasoning elements:* Classification and pattern inference
+- *Reality check gap:* Decision of "is this a recurrent pattern" is heuristic-based, not validated by data.
+  - Example: Coder sees "we renamed this variable for clarity" once → might capture as convention without evidence it recurs
+- *Failure modes:*
+  - Deviation: One-off mistake captured as convention
+  - Fabrication: Pattern generalized from single instance
+  - Avoidance: Important recurrent pattern isn't recognized
+
+***** Step 14a — Completeness Verifier [REASONING]
+- *Action:* Check: does implementation cover every design aspect? Are there partially implemented requirements? Do all tests pass? Do specs exist?
+- *Grounded elements:* Tests pass (already run), reads code + design
+- *Reasoning elements:* Completeness verification is reasoning-based; no additional tests
+- *Reality check gap:* Verifier might miss implementation gaps that only show up in integration testing or under load.
+- *Failure modes:*
+  - Deviation: Verifier thinks implementation is complete but real-world testing reveals gaps
+  - Fabrication: Verifier asserts requirement is "partially implemented" based on reading
+  - Avoidance: Verifier defers integration concerns ("that's integration testing's job")
+
+***** Step 14b — Context Maintenance [REASONING]
+- *Action:* Check if implementation changed anything documented in CLAUDE.md. Update Key Directories, Data Flow, Conventions.
+- *Grounded elements:* Reads implementation + CLAUDE.md
+- *Reasoning elements:* Updating documentation is reasoning-based; no validation that updates are correct
+- *Reality check gap:* Updates to CLAUDE.md are assumed correct; no test that team will understand and follow new documentation.
+- *Failure modes:*
+  - Deviation: Documentation update is inaccurate or incomplete
+  - Fabrication: Subagent assumes update is needed when it isn't
+  - Avoidance: Subagent skips documentation ("not critical")
+
+***** Step 14c — Clean up [REASONING]
+- *Action:* Delete working directory (designs/<feature>-design/).
+- *Grounded elements:* None
+- *Reasoning elements:* Cleanup is mechanical
+- *Reality check gap:* No validation that working directory deletion doesn't lose important context.
+- *Failure modes:*
+  - Deviation: Cleanup deletes something important
+  - Fabrication: Assumption that cleanup is safe without verification
+  - Avoidance: Unlikely here (cleanup is straightforward)
+
+***** Step 15 — Commit [GROUNDED] ✓
+- *Action:* Follow commit staging plan. Create atomic commits. Each compiles and passes tests independently.
+- *Grounded elements:* **Each commit compiles and tests pass**
+- *Reasoning elements:* Decision of what to include in each commit
+- *Reality check:* Commits are tested individually, so grounded. But the decision of atomicity is reasoning-based.
+- *Weakness:* Tests might not catch all issues; tests were written by same team.
+
+*** RESEARCH-FLOW Steps
+
+***** Step 1 — Frame [HYBRID]
+- *Action:* Derive topic name, create research doc, discover missing optional fields (In Scope, Out of Scope, Evaluation Criteria, Known Leads). Infer Output Expectation.
+- *Grounded elements:* Reads provided question and context
+- *Reasoning elements:* Inference of missing fields, derivation of output expectation
+- *Reality check gap:* Inferred scope might be wrong. Derived output expectation might not be what user really needs.
+  - Example: Question seems to need a "comparison" but user actually needs "proof-of-concept"
+- *Failure modes:*
+  - Deviation: Scope inferred too narrow, missing important options
+  - Fabrication: Inferred output expectation is user's real need
+  - Avoidance: Frame skips verification ("user will correct me if wrong")
+
+***** Step 2 — Gather (3 parallel subagents) [GROUNDED] ✓
+- *Action:* Codebase Auditor searches codebase. External Surveyor searches external solutions. Constraint Analyst reads architecture.
+- *Grounded elements:* **Actual codebase search and external research; findings are real**
+- *Reasoning elements:* Synthesis of findings into options.org entries
+- *Reality check:* This step searches actual code and external solutions, so grounded. But synthesis into options might be incomplete or biased.
+- *Weakness:* Subagents might miss relevant code or external solutions; gathering is inherently incomplete.
+
+***** Step 3 — Critic [REASONING]
+- *Action:* Read options.org + findings.org + intake. Check for confirmation bias, missing options, stale info, false constraints, scope drift.
+- *Grounded elements:* Reads actual findings + options
+- *Reasoning elements:* Bias/gap analysis is reasoning-based; no additional research
+- *Reality check gap:* Critic asserts "confirmation bias exists" or "missing options" without running follow-up search to validate.
+  - Example: Critic might say "we only found internal solutions, should check external" — but what if that's because external solutions don't exist or aren't relevant?
+- *Failure modes:*
+  - Deviation: Critic claims bias where there is none
+  - Fabrication: Critic asserts missing options without evidence
+  - Avoidance: Critic defers ("you need to research more")
+
+***** Step 4 — Auto-resolve [REASONING]
+- *Action:* Resolve [Auto] items. If Critic flagged missing options, run targeted follow-up search. Move resolved to resolved.org.
+- *Grounded elements:* Follow-up search (if triggered) is grounded; otherwise, reasoning-only resolution
+- *Reasoning elements:* Decision of whether Critic's concern is valid, resolution of Auto items
+- *Reality check gap:* Follow-up search might still miss options. Auto-resolution of concerns might be premature.
+  - Example: Concern "external solutions aren't recent" → follow-up finds one repo updated 3 months ago → resolve as "external solutions available" — but one repo might not be enough evidence
+- *Failure modes:*
+  - Deviation: Resolved concern reappears in synthesis
+  - Fabrication: Resolution is based on incomplete follow-up
+  - Avoidance: Resolution defers to next step ("synthesis will handle it")
+
+***** Step 5 — Synthesize [REASONING]
+- *Action:* Write Findings, Comparison, Recommendation, and optionally Decision sections. Reorder document.
+- *Grounded elements:* Reads options.org + findings + resolved concerns; no new research
+- *Reasoning elements:* Analysis and writing are pure reasoning
+- *Reality check gap:* Recommendation might be based on incomplete options or biased evaluation.
+  - Example: Comparison table shows "Option A: 100ms, Option B: 200ms" but these numbers come from different sources and might not be directly comparable
+  - Recommendation might pick Option A based on latency, but actual use case is latency-insensitive
+- *Failure modes:*
+  - Deviation: Recommendation is reasonable given findings, but findings are incomplete
+  - Fabrication: Recommendation asserts confidence level without evidence
+  - Avoidance: Recommendation defers to user ("you decide between these")
+
+***** Step 5a — Converge [REASONING]
+- *Action:* Interactive decision: present options + trade-offs, user picks or ranks, record Decision section.
+- *Grounded elements:* User's choice is grounded in user's real priorities; otherwise reasoning-only
+- *Reasoning elements:* Presenting options, recording decision
+- *Reality check gap:* User's choice might be wrong if their mental model differs from reality.
+  - Example: User picks "simple" option thinking "we'll optimize later" — but "later" never comes
+- *Failure modes:*
+  - Deviation: User's priorities don't match actual constraints ("we thought simplicity mattered, but load keeps growing")
+  - Fabrication: Recommendation influences user's choice; user doesn't make independent decision
+  - Avoidance: Convergence defers to user instead of providing clear guidance
+
+***** Step 5b — Minimal PoC [GROUNDED] ✓
+- *Action:* When Output Expectation is "proof-of-concept", implement smallest working example of recommended approach. Single file/module, focused on feasibility, not production quality.
+- *Grounded elements:* **Code is written and must work; demonstrates actual feasibility**
+- *Reasoning elements:* Design of PoC, decision of what to implement
+- *Reality check:* This step is grounded. PoC code runs (or doesn't), providing real feedback. Note: PoC is *optional* (only when Output Expectation is proof-of-concept).
+- *Weakness:* PoC might work in isolation but fail in actual integration. PoC is intentionally not production-quality, so might miss real constraints.
+
+***** Step 6 — Finalize [REASONING]
+- *Action:* Verify research doc is complete. Include discarded options summary in Findings. Delete working directory. Keep research doc.
+- *Grounded elements:* None in finalization itself
+- *Reasoning elements:* Verification and cleanup
+- *Reality check gap:* Verification is document-based, not feasibility-based.
+- *Failure modes:*
+  - Deviation: Research doc is complete but recommendations are infeasible (only discovered during design/implementation)
+  - Fabrication: Finalization assumes research is sound
+  - Avoidance: Finalization doesn't flag risky recommendations
+
+*** IMPLEMENTATION-FLOW (when used standalone)
+
+*Implementation-FLOW is designed to be used *after* FULL-FLOW's design phase completes. Steps 8-14 of FULL-FLOW are essentially the same as Steps 1-7 of IMPLEMENTATION-FLOW. Analysis above covers both.*
+
+---
+
+** B. Gap Analysis — Which [REASONING] Steps Would Benefit Most from Grounding?
+
+Rank by three failure modes: Deviation (design drifts from reality), Fabrication (unwarranted assumptions), Avoidance (invented reasons to skip work).
+
+*** Highest Priority Gaps
+
+***** 1. FULL-FLOW Step 2 — Critic + Boundary Analyst + Steward S1 [REASONING]
+- *Failure modes:*
+  - **Deviation (high):** Critic's mental model of existing patterns differs from actual runtime behavior. Example: "We always use GenServer for stateful work" → but existing code shows most stateful work is in supervised processes with simpler structure.
+  - **Fabrication (high):** "This will cause race conditions" asserted without constructing failing test case. "Performance will degrade under load" asserted without benchmarking.
+  - **Avoidance (medium):** Critic flags vague concerns ("may be slow", "could be fragile") and moves on instead of demanding specificity.
+- *Why high priority:* Step 2 is where design directions are set. Ungrounded critiques influence design loop.
+- *Reality check insertion:*
+  - Run a targeted test/benchmark on the specific pattern being evaluated. Example: "Does ETS contention actually occur at our scale?"
+  - Ask Critic to construct a concrete failure scenario and validate it can happen (or fails to happen)
+
+***** 2. FULL-FLOW Step 3 — Auto-resolve [REASONING]
+- *Failure modes:*
+  - **Deviation (high):** Resolver assumes a pattern applies ("use GenServer") without checking if actual use case fits. Results in design that doesn't compile or doesn't work.
+  - **Fabrication (medium):** "This is the established pattern" asserted without checking if exception exists for similar cases.
+  - **Avoidance (medium):** Vague resolutions ("we'll figure it out during implementation") move forward instead of blocking.
+- *Why high priority:* Auto-resolve decisions compound in Step 4 loop. Wrong assumptions propagate.
+- *Reality check insertion:*
+  - Before auto-resolving: compile-check the proposed solution (at least syntactically). Example: "Does this module arrangement create a valid supervision tree?"
+  - Run existing tests against the proposed design direction (without implementing, just structure check)
+
+***** 3. FULL-FLOW Step 6 — Design review [REASONING]
+- *Failure modes:*
+  - **Fabrication (high):** Reviewers assert "this handles all edge cases" or "API is correct" based on reading, not testing.
+  - **Deviation (medium):** Reviewer misreads code signature and accepts design that won't compile.
+  - **Avoidance (high):** Test Reviewer suggests "needs testing" but doesn't flag that flow never tests design; Spec Reviewer checks syntax, not runtime conformance.
+- *Why high priority:* Design review is mandatory gate before implementation. Ungrounded review wastes implementation effort.
+- *Reality check insertion:*
+  - Compile a stub implementation of critical paths from the design. "Does the module arrangement work in a supervision tree?"
+  - Run a one-time test of the proposed data flow. "Can modules actually send/receive in the way design specifies?"
+  - Spec Reviewer: generate types from formal specs and validate they compile
+
+***** 4. FULL-FLOW Step 9 — Trailing Abstraction Minimalist check [REASONING]
+- *Failure modes:*
+  - **Deviation (medium):** Tier violation exists but reasoner doesn't spot it (lightweight check by design).
+  - **Fabrication (low):** Unlikely here; code has been written.
+  - **Avoidance (high):** Check is "lightweight by design" — skips edge cases where tier mismatch shows up under load or error conditions.
+- *Why high priority:* Tier violations compound: downstream code adapts to wrong abstraction, making later fixes expensive.
+- *Reality check insertion:*
+  - Full trailing check: run a more complete Abstraction Minimalist review, not lightweight. Flag violations even if not immediately obvious.
+  - Test-based detection: write tests that exercise the code at different abstraction levels. Tier violations often show up in test complexity or edge case brittleness.
+
+***** 5. FULL-FLOW Step 11 — Steward S4 intent check [REASONING]
+- *Failure modes:*
+  - **Fabrication (high):** Steward asserts "all acceptance criteria met" based on reading code, not running tests.
+  - **Deviation (medium):** Steward misreads code and thinks criterion is met when it isn't.
+  - **Avoidance (high):** Steward defers performance/load criteria ("that needs profiling")
+- *Why high priority:* S4 is the last check before user review. Ungrounded S4 passes incomplete implementation to user.
+- *Reality check insertion:*
+  - Run each acceptance criterion as a test or benchmark. "Response time is <100ms" → measure actual latency.
+  - Run the full test suite + linter before S4. Don't rely on implicit testing from earlier steps.
+
+***** 6. RESEARCH-FLOW Step 3 — Critic [REASONING]
+- *Failure modes:*
+  - **Fabrication (high):** Critic asserts "bias exists" or "options missing" without follow-up research to validate.
+  - **Deviation (medium):** Critic claims missing options, but options actually exist and aren't missing.
+  - **Avoidance (medium):** Critic flags concerns but doesn't demand specificity ("might be slow" → "in what scenario?")
+- *Why high priority:* Critic's findings drive follow-up gather in Step 4. Unfounded concerns waste effort; missed concerns cause design failures.
+- *Reality check insertion:*
+  - When Critic flags a concern, run a targeted counter-check: "Does this concern actually apply?" Example: "Critic says external solutions are outdated" → search for recent releases.
+  - Critic must provide a concrete scenario, not an assertion. "Confirmation bias" → "we focused on Y but didn't look for X; here's an alternative search."
+
+***** 7. IMPLEMENTATION-FLOW Step 8c — Commit staging [REASONING]
+- *Failure modes:*
+  - **Fabrication (high):** Staging asserts "this commit will be atomic and pass tests" without validating that intermediate state is buildable.
+  - **Deviation (medium):** Commit boundary seems atomic in theory but creates broken intermediate state.
+  - **Avoidance (low):** Staging skips pre-implementation risk checking.
+- *Why high priority:* If commit plan is wrong, implementation becomes unpleasant and rework is expensive.
+- *Reality check insertion:*
+  - Dry-run the commit staging plan: in a separate branch, create a minimal impl for each commit and verify it compiles. Don't implement fully, just scaffold.
+  - Check commit boundaries for circular dependencies and missing preparatory steps.
+
+*** Medium Priority Gaps
+
+***** 8. FULL-FLOW Step 7 — Finalize design [REASONING]
+- *Reality check insertion:* Before cleanup, do a final compile-check of critical paths. Can a developer actually build this design without rework?
+
+***** 9. FULL-FLOW Step 13b — Fix Validator [REASONING]
+- *Reality check insertion:* Run full test suite (not just diffs) after fixes. Don't rely on "tests already passed before fixes."
+
+***** 10. RESEARCH-FLOW Step 5 — Synthesize [REASONING]
+- *Reality check insertion:* When Comparison table has quantitative columns (latency, complexity, lines of code), validate the numbers. Are they from comparable sources?
+
+***** 11. IMPLEMENTATION-FLOW Step 1 — Plan [REASONING]
+- *Reality check insertion:* Dry-run the plan: in a scratch branch, scaffold the module structure and verify it compiles and the supervision tree works.
+
+*** Lower Priority Gaps (but real)
+
+***** 12. FULL-FLOW Step 5 — Escalate [REASONING]
+- *Reality check insertion:* When user provides critical answers, do a feasibility sanity-check before accepting. Example: User says "use Redis" → check if Redis is in dependencies.
+
+***** 13. FULL-FLOW Step 10 — Self-review [REASONING]
+- *Reality check insertion:* Reviewers write test cases that would fail if their concerns are real. Execute those tests. If tests pass, concern isn't real (or test is insufficient).
+
+---
+
+** C. Existing Grounding Mechanisms
+
+What reality checks are already in the flows?
+
+*** Explicit [GROUNDED] Steps
+
+1. **FULL-FLOW Step 9 — Implement + `mix paranoid`** ✓
+   - Code is written, compiled, tested, linted
+   - Test suite runs (inherited from project)
+   - Linter catches style/structure issues
+   - *Strength:* Solid reality check via test suite
+   - *Weakness:* Tests written by same agent (shared blind spots); linter might miss logic errors
+
+2. **FULL-FLOW Step 11 — Fix + re-run `mix paranoid`** ✓
+   - After reviewers flag issues, code is fixed and re-tested
+   - *Strength:* Fixes are validated
+   - *Weakness:* Fix interpretation might be wrong; reviewer might have misread code
+
+3. **FULL-FLOW Step 13a — Apply review fixes + `mix paranoid`** ✓
+   - User review notes are applied and code re-tested
+   - *Strength:* User's requested changes are validated
+   - *Weakness:* Interpretation of review notes might be wrong
+
+4. **FULL-FLOW Step 15 — Commit, each compiles and tests pass** ✓
+   - Each commit is tested independently
+   - *Strength:* Commits are validated individually
+   - *Weakness:* Tests might not catch integration issues
+
+5. **RESEARCH-FLOW Step 2 — Gather** ✓
+   - Codebase Auditor searches actual code
+   - External Surveyor searches actual external solutions
+   - *Strength:* Findings are based on reality
+   - *Weakness:* Gathering is inherently incomplete; surveyor might miss relevant solutions
+
+6. **RESEARCH-FLOW Step 5b — Minimal PoC** ✓ (optional)
+   - When Output Expectation is proof-of-concept, code is written and must work
+   - *Strength:* Feasibility is proven
+   - *Weakness:* PoC is intentionally minimal; might not prove production feasibility; only triggered for PoC output
+
+### Implicit Grounding Mechanisms
+
+7. **CODE-QUALITY.md — Style calibration (Step 9, Implementation flow Step 2)**
+   - Before writing code, sample user's recent commits
+   - *Strength:* Grounds naming/structure in user's actual style
+   - *Weakness:* Pattern inference from reading (no test of inferred pattern)
+
+8. **FULL-FLOW Step 9 — Compilation**
+   - Code compiles successfully (or test suite would fail)
+   - *Strength:* Syntax is correct; module relationships exist
+   - *Weakness:* Compilation doesn't guarantee logic is correct
+
+9. **Critic re-evaluation in Step 4 auto-loop**
+   - Critic reads updated design and past concerns
+   - *Strength:* Critic has chance to catch mistakes
+   - *Weakness:* Critic is still reasoning-based; no test of whether concerns are addressed
+
+10. **Steward checks (S1, S2, S3, S4)**
+    - Steward re-reads original intent and compares to design/implementation
+    - *Strength:* Intent is validated at multiple gates
+    - *Weakness:* Steward reads code/design; doesn't run it
+
+### Grounding by Count
+
+- **Fully grounded steps:** 6 (all involve test suite execution)
+- **Partially grounded steps:** 3 (some code/reading involved, but reasoning dominates)
+- **Pure reasoning steps:** 20+ (all analysis, no execution)
+
+**Ratio:** ~15% fully grounded, 80% pure reasoning, 5% hybrid with reasoning dominance.
+
+---
+
+** D. Proposed Insertion Points for Reality Checks
+
+Minimal flow disruption: add reality checks at bottleneck steps (gates where decisions accumulate) rather than every step.
+
+*** TIER 1: High-value, low-disruption additions (add to flows as mandatory steps)
+
+***** 1. Post-Step 2 Sanity Check (FULL-FLOW design phase)
+- *When:* After Critic + Boundary Analyst + Steward S1 complete
+- *Reality check:*
+  - Compile-time validation: can the proposed module structure be expressed in actual Elixir code? Can a supervision tree be built from the proposed arrangement?
+  - Mechanism: Author writes a minimal stub of critical modules (just structure, no logic). Attempt to compile. Report errors.
+- *Output:* Short report: "Module arrangement is structurally sound" or "X module references Y which doesn't exist yet."
+- *Cost:* ~5 minutes of code writing + compilation
+- *Disruption:* Inserts between Step 2 and Step 3. Doesn't block flow, but might flag new questions for Step 3 auto-resolve.
+
+***** 2. Design Feasibility Test (FULL-FLOW Step 6, design review)
+- *When:* After 7 reviewers complete, before moving to implementation
+- *Reality check:*
+  - Spec Reviewer: generate actual types/schemas from formal specs. Attempt to compile them. Do they express the constraints described in design?
+  - Integration Reviewer: write a minimal end-to-end scenario (not full implementation, just module calls). Can modules interact as design specifies?
+- *Output:* Report: "Formal specs compile and express design intent" or "Gap found in X schema."
+- *Cost:* ~10 minutes of stub implementation per critical spec
+- *Disruption:* Inserts at Step 6 (review) as additional checks for Spec and Integration reviewers. Doesn't extend flow; just deepens review.
+
+***** 3. Pre-Implementation Risk Validation (FULL-FLOW Step 8, planning)
+- *When:* After impl-plan.org is complete, before Step 9 implementation
+- *Reality check:*
+  - Plan Validator: dry-run the commit staging plan in a scratch branch. Create minimal stubs for each commit. Verify each commits compiles and supervision tree works.
+- *Output:* Report: "Commit plan is executable" or "Commits 2-3 have missing dependencies."
+- *Cost:* ~20 minutes of scaffolding work
+- *Disruption:* Inserts between Step 8 and Step 9. Doesn't block flow; might flag reordering needed in commit plan.
+
+***** 4. Acceptance Criteria Validation (FULL-FLOW Step 11, pre-user review)
+- *When:* After fixes complete and before Step 12 review-plan
+- *Reality check:*
+  - Steward S4 + Completeness Verifier run explicit tests for each Acceptance Criterion from intake. No test exists → write minimal test, run it.
+  - Example: Criterion "search returns results in <100ms" → write benchmark test, measure actual time.
+- *Output:* Report: "All acceptance criteria validated" with actual measurements, or "Criterion X not met: actual latency 250ms."
+- *Cost:* ~10-15 minutes per non-trivial criterion
+- *Disruption:* Inserts at Step 11 (after fixes). Doesn't block flow; might flag unaddressed criteria for user review.
+
+***** 5. Critic Follow-up Validation (RESEARCH-FLOW Step 3, after Critic)
+- *When:* Critic flags "confirmation bias" or "missing options"
+- *Reality check:*
+  - Run targeted follow-up search to validate Critic's claim. Example: Critic says "external solutions not recent" → search for repos updated in last 6 months. Report actual findings.
+  - If Critic claims "bias," ask Critic to specify: "Did we look for approach X?" If not, search for it. If yes, why didn't we find it?
+- *Output:* Report: "Critic's concern validated: no recent external solutions found" or "Critic's concern unfounded: X solutions are recent."
+- *Cost:* ~5-10 minutes follow-up research
+- *Disruption:* Part of Step 3 (Critic phase). Doesn't extend flow.
+
+***** 6. Code Clarity Test (FULL-FLOW Step 10 self-review, Code Clarity Reviewer)
+- *When:* Code Clarity Reviewer (role #9) produces report
+- *Reality check:*
+  - Instead of pure reading: ask another subagent to read the code *without context* (design doc not provided) and describe what it does. Compare to design intent. Gaps = clarity issues.
+- *Output:* Report: "Code intent matches design without needing context" or "X function's purpose unclear from code alone."
+- *Cost:* ~10 minutes additional review
+- *Disruption:* Enhances Step 10 (self-review). Doesn't extend flow.
+
+*** TIER 2: Medium-value, medium-disruption additions (optional, triggered by conditions)
+
+***** 7. Integration Smoke Test (FULL-FLOW Step 11, after fixes)
+- *Trigger:* Implementation touches modules that interact with supervision tree, message queues, or databases
+- *Reality check:*
+  - Run a minimal integration test before Step 12 review-plan. Modules can initialize, register, and send one message. No logic tested; just wiring.
+- *Output:* Report: "Modules integrate successfully" or "Initialization fails: X."
+- *Cost:* ~10 minutes
+- *Disruption:* Optional, triggered when high integration risk detected.
+
+***** 8. Load Test for Performance Criteria (FULL-FLOW Step 11, if criteria exist)
+- *Trigger:* Acceptance Criteria include performance targets (latency, throughput, memory)
+- *Reality check:*
+  - Run a load test matching the performance criterion. Example: "Handle 1000 concurrent requests" → simulate 1000 requests, measure response time and memory.
+- *Output:* Report: "Performance criterion met: 1000 req/s, 150ms p99 latency" or "Criterion not met: 500 req/s max."
+- *Cost:* ~20 minutes (writing load test + running it)
+- *Disruption:* Optional, triggered by performance criteria.
+
+***** 9. Race Condition Stress Test (FULL-FLOW Step 10 self-review, if Edge Case Reviewer flags concurrency risks)
+- *Trigger:* Edge Case Reviewer flags potential race conditions
+- *Reality check:*
+  - Write a test that deliberately creates the race condition described. Run it 1000x. Does it fail consistently, occasionally, or never?
+  - If it never fails: concern is unfounded. If it occasionally fails: race condition is real. If it always fails: test is wrong.
+- *Output:* Report: "Race condition verified" (with failure rate) or "Race condition not reproducible."
+- *Cost:* ~15 minutes
+- *Disruption:* Optional, triggered by specific reviewer concerns.
+
+*** TIER 3: High-value, high-disruption additions (use selectively for high-risk features)
+
+***** 10. Specification Compliance Test (FULL-FLOW Step 6, for complex APIs)
+- *Trigger:* Design includes formal spec (OpenAPI, AsyncAPI, JSON Schema) with >10 endpoints or complex validation rules
+- *Reality check:*
+  - Generate code from formal spec (e.g., OpenAPI → Elixir types). Verify that implemented code conforms to generated types. Run generated tests against actual code.
+- *Output:* Report: "Implementation conforms to spec" or "X endpoint deviates from spec in Y way."
+- *Cost:* ~30 minutes (spec review + type generation + compliance test)
+- *Disruption:* Inserts at design review (Step 6) or implementation (Step 9). Adds 30 minutes to flow.
+
+***** 11. Full Circuit Breaker Test (FULL-FLOW Step 11, for distributed features)
+- *Trigger:* Implementation includes network calls, retries, or fault handling
+- *Reality check:*
+  - Write tests that kill/slow the external service (stub it). Verify circuit breaker / retry logic works as designed. Example: "external service returns 500 errors" → verify code backs off and eventually recovers.
+- *Output:* Report: "Circuit breaker works" or "No circuit breaker implemented for external call in X."
+- *Cost:* ~20 minutes
+- *Disruption:* Inserts at Step 11 (after fixes). Adds 20 minutes to flow.
+
+***** 12. Behavior-Driven Acceptance Test (FULL-FLOW Step 14, completion)
+- *Trigger:* Feature involves user-facing behavior or cross-team integration
+- *Reality check:*
+  - Write tests in Gherkin / BDD style directly from Acceptance Criteria. Run them against the implementation.
+  - Example: Criterion "user can search by name and get results in <1s" → write: `When user searches for "Alice", Then results include "Alice Anderson" within 1000ms.`
+- *Output:* Report: "All acceptance criteria verified via BDD tests" or "Criterion X fails in test."
+- *Cost:* ~20-30 minutes
+- *Disruption:* Inserts at finalization (Step 14). Adds 20-30 minutes to flow.
+
+*** Implementation Recommendations
+
+***** For all projects: Add TIER 1 checks
+- High value (catches real errors), minimal disruption
+- Insert as **mandatory sub-steps**, not optional gates
+- Report output is brief (pass/fail + one-line summary)
+
+***** For complex features: Add TIER 2 checks
+- Triggered by specific conditions (concurrency, performance targets, integration)
+- Explicitly opt-in via trigger conditions, not mandatory
+- Use when risk assessment suggests checking
+
+**##### For high-risk features: Add TIER 3 checks
+- Full contract verification, fault-tolerance validation
+- Explicitly opt-in, probably triggered by user request or feature criticality flag
+- Use for distributed systems, complex APIs, payment/security features
+
+---
+
+** Summary Table: Grounding Gaps and Fixes
+
+| Flow | Step | Status | Failure Mode | Proposed Fix | Tier | Cost |
+|------|------|--------|--------------|--------------|------|------|
+| FULL | 2 | [REASONING] | Deviation, Fabrication | Compile-check module structure | 1 | 5 min |
+| FULL | 3 | [REASONING] | Deviation, Fabrication | Verify pattern applies to case | 1 | 5 min |
+| FULL | 6 | [REASONING] | Fabrication | Spec type generation + compile | 1 | 10 min |
+| FULL | 8c | [REASONING] | Fabrication, Deviation | Dry-run commit plan | 1 | 20 min |
+| FULL | 9 | [GROUNDED] | N/A (code runs) | N/A | — | — |
+| FULL | 10 | [REASONING] | Fabrication | Ask naive reader to describe code | 2 | 10 min |
+| FULL | 11 | [REASONING] | Fabrication, Avoidance | Explicit acceptance criterion tests | 1 | 15 min |
+| FULL | 11 | [REASONING] | Fabrication | Integration smoke test | 2 | 10 min |
+| RESEARCH | 3 | [REASONING] | Fabrication, Deviation | Validate Critic's claims via follow-up | 1 | 5 min |
+| RESEARCH | 5b | [GROUNDED] | N/A (PoC runs) | N/A (already grounded) | — | — |
+
+---
+
+* Conclusion
+
+The flow system is **15% grounded** (test/compile/execution), **80% reasoning-based**, **5% hybrid**.
+
+The three failure modes are concentrated in reasoning steps:
+- **Deviation:** Most common in design phase (Steps 1-7). Reality check: compile-time checks of structure.
+- **Fabrication:** Most common in review phases (Steps 6, 10). Reality check: explicit tests of claims.
+- **Avoidance:** Most common where no tests exist. Reality check: write tests for deferrable concerns.
+
+Proposed insertion points are **high-leverage, low-disruption** — add TIER 1 checks as mandatory sub-steps. TIER 2/3 for higher-risk features.
+
+Key insight: **Most gaps appear at decision gates** (Steps 2, 3, 6, 8, 11) where analysis results don't feed forward into tests. Adding reality checks at these gates — even minimal ones — would dramatically reduce ungrounded decisions flowing into subsequent steps.

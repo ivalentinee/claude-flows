@@ -129,11 +129,17 @@ commits (`git log --author` + read 1-2 touched files) to calibrate
 naming, structure, and idiom choices. The user's code is the
 authoritative style reference. Do this silently.
 
-Follow the plan from `impl-plan.org`. For each step in order:
-- Define interfaces and formal specs first (as identified in the plan)
-- Write the implementation
-- Write tests for the new code's key behaviors and edge cases — do not
-  rely solely on existing tests to validate new code
+Follow the commit staging plan from `impl-plan.org`. For each commit:
+
+1. **Enumerate properties** — list the specific behavioral properties
+   this commit should validate (Beck's "test list"). For each, decide:
+   test now (P0-P1), test later (P2), or not tested (with reason).
+2. **Write tests** targeting enumerated P0-P1 properties — do not rely
+   solely on existing tests to validate new code
+3. **Run tests** — verify they fail (behavior doesn't exist yet)
+4. **Implement** — define interfaces/specs first, then minimum code
+   to pass the tests
+5. **Run tests** — verify they pass
 
 **Test strategy:** prefer e2e tests that exercise real infrastructure
 (DB, message queues, blob storage) over unit tests with mocks. Only

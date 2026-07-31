@@ -112,6 +112,53 @@ rules below are the floor; the user's code is the ceiling.
 
 ---
 
+## Grounded Reasoning
+
+Code quality depends on reality-testing, not just reasoning about
+code. Five principles:
+
+**Execution over reasoning.**
+- When you can test a claim by running code, run it. Don't reason
+  about what "would" happen — verify it.
+
+**Separate generator and verifier.**
+- Never trust yourself to both generate and validate code. Write
+  code, then run tests — separate steps, separate verification.
+
+**Claims require evidence.**
+- Assertions about behavior ("this will cause a race condition",
+  "this library supports X") must be backed by evidence: file path
+  + line number, test output, error reproduction, or benchmark.
+  If you have not verified, say "I have not verified this claim."
+
+**Freshness discipline.**
+- Re-read files before making claims about their content. If more
+  than ~5 reasoning steps have passed since reading a file, re-read
+  before asserting facts about it.
+
+**Avoidance requires proof.**
+- "Pre-existing issue", "not worth pursuing", "unlikely edge case"
+  are claims that require evidence. If you have not tested the claim,
+  you cannot make it. Verify: `git stash` + run tests, measure with
+  a benchmark, write a property test, or read the actual docs.
+
+### Property-First Test Design
+
+Before writing test code, enumerate which behavioral properties
+the test should validate (Beck's "test list" — the Canon TDD step
+most practitioners skip):
+
+1. List every relevant property class (response structure, error
+   handling, edge cases, timing, resource cleanup)
+2. For each, decide: test now (P0-P1), test later (P2), or not
+   tested (with reason)
+3. Write the specific predicate for each "test now" property
+
+This prevents under-assertion (checking only that code runs) and
+over-assertion (checking implementation details that will change).
+
+---
+
 ## Self-Documenting Code
 
 Guiding principle (Mokevnin's Mental Programming): good code encodes

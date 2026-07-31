@@ -1,0 +1,372 @@
+#+STARTUP: overview
+#+title:      Research: Grounded Reasoning — Reality-Testing in AI-Assisted Development
+#+date:       [2026-07-31 Thu 14:10]
+#+filetags:   :research:reasoning:grounding:tdd:prototyping:flows:
+#+identifier: 20260731T141011
+#+signature:
+#+deferred:
+
+* Research: Grounded Reasoning — Reality-Testing in AI-Assisted Development
+
+** Original Prompt
+When Claude does "thinking" (esp. any sort of evaluation), it does not
+challenge its "thinking" heavily against reality. That leads to
+deviation, drift and made-up arguments (the third one is especially
+hard with Claude making up excuses to not push the work further with
+"pre-existing issue" or "not worth pursuing"). One thing I usually do
+when approaching any coding task is to do real-world evaluation. Say,
+I want to code something using ffmpeg filters, but before going with
+the design, I often go and make a "limited usage" prototype (say, a
+bash script with a single sample) to challenge the idea. Another way
+to think about it is to compare two approaches for AI imagery:
+1) Use AI imagination to do the imagery
+2) Use AI to run an actual image editor, say a direct AI-to-GIMP
+   interface to create an image
+While by default many imagery tools use the first one, I'm looking
+more into the second, because that would "ground" the imaginary part
+of the evaluation/synthesis to the real world. With coding/software
+that could be "early experiments" and "extensive gradual TDD" (same
+test slowly enforcing behavioral properties to run tests as early as
+possible) and many other similar approaches.
+
+** Steering
+
+** Question
+How can AI-assisted development flows be grounded in real-world
+feedback (running code, executing tests, building prototypes) rather
+than relying on pure internal reasoning? What practices, patterns, and
+flow modifications would force Claude to reality-test its thinking
+before committing to designs or implementations?
+
+** Context
+The current flow system relies heavily on Claude's internal reasoning:
+the Author designs from reading code, the Critic challenges from
+reasoning about the design, reviewers evaluate from reading diffs.
+None of these steps involve /running/ anything — no prototype
+execution, no test verification during design, no proof-of-concept
+validation. The Steward checks intent drift but also from reasoning,
+not from running code.
+
+The user observes three failure modes from ungrounded reasoning:
+1. *Deviation:* reasoning drifts from reality over multiple steps
+2. *Made-up arguments:* Claude fabricates justifications for or
+   against approaches without evidence
+3. *Avoidance excuses:* Claude invents reasons to avoid work
+   ("pre-existing issue", "not worth pursuing") rather than
+   testing whether the concern is real
+
+All three share a root cause: reasoning without reality-checking.
+
+** In Scope
+- Prototype-first / spike-first development patterns
+- Gradual TDD as a grounding mechanism (write tests early, run them
+  continuously, let test results shape design)
+- "Tool use" vs "imagination" paradigm for AI reasoning
+- How other AI coding tools handle grounding (Devin, Cursor, etc.)
+- Specific flow modifications: where to insert reality-checks
+- The research flow specifically: how to ground research findings
+  (e.g., actually running a prototype rather than reasoning about
+  feasibility)
+
+** Out of Scope
+- AI image generation / GIMP integration (used as analogy only)
+- Changes to Claude Code's tool capabilities
+- Formal verification / proof systems
+
+** Evaluation Criteria
+1. Concreteness — proposed changes must specify WHAT gets run and WHEN
+2. Integration — changes fit into existing flow structure
+3. Drift prevention — the grounding mechanism catches the three failure
+   modes (deviation, fabrication, avoidance)
+4. Overhead — reality-checks should not double the flow time
+5. Generality — works for both code projects and non-code projects
+
+** Known Leads
+- User's ffmpeg prototype pattern (bash script with single sample)
+- "Gradual TDD" — tests enforcing behavioral properties early
+- Proof-of-concept output in RESEARCH-FLOW.md (Step 5b, already exists)
+- Spike solutions (XP practice)
+- Kent Beck's "make the change easy, then make the easy change"
+- Tool-augmented LLM reasoning (ReAct pattern, tool use)
+- Devin's approach (runs code in sandboxed environment)
+- The "grounded language models" research direction
+- Anthropic's tool use patterns for Claude
+
+** Findings
+
+Detailed findings on anti-confabulation research are in
+[[file:grounded-reasoning-design/anti-confabulation.org][anti-confabulation.org]].
+
+Summary of key findings:
+
+1. *Three failure modes share a root cause:* deviation (stale world
+   model), fabrication (post-hoc rationalization without evidence),
+   and avoidance (premature completion / lazy shortcuts) all stem from
+   reasoning without reality-checking.
+
+2. *The Stale World Model Problem* is well-documented: long-running
+   agents accumulate stale assumptions that diverge from reality
+   mid-task. At 85% per-step reliability, a 10-step task succeeds
+   only ~20% of the time. Best frontier models detect stale memories
+   at only 55.2% accuracy.
+
+3. *CodeHalu taxonomy* categorizes code hallucinations into mapping,
+   naming, resource, and logic types. Logic hallucinations (flawed
+   behavioral understanding) are the most prevalent in frontier LLMs.
+
+4. *Execution-based verification* is strictly stronger than
+   model-based verification. Generate and verify must be separate
+   steps --- the model must never be trusted to both generate and
+   validate. Reflexion (execution-based self-correction) improves
+   pass@1 by 11 points on HumanEval.
+
+5. *Five grounding principles* emerge: (a) execution over reasoning,
+   (b) separate generator and verifier, (c) claims require extractive
+   grounds, (d) freshness discipline / TTL for facts, (e) avoidance
+   requires burden of proof.
+
+6. *Concrete flow modifications* proposed: spike gates in design
+   phase, continuous execution checkpoints in implementation,
+   evidence-backed review claims, and an avoidance detector that
+   flags excuse language and requires verification.
+
+*** External survey
+
+Detailed findings in [[file:grounded-reasoning-design/findings.org][findings.org]].
+
+- *Deterministic Horizon (June 2026):* beyond ~20-31 steps of pure
+  reasoning, accuracy collapses to near-random. Tool-integrated
+  reasoning: 86-94% vs 24-42% for chain-of-thought. This is an
+  architectural ceiling, not a training deficiency.
+- *SWE-bench agents:* 2x precision when writing reproduction tests
+  before fixing. Devin: 72% of passing tests take >10 minutes
+  (iteration, not first-shot accuracy, drives success).
+- *TDD as grounding:* three papers converge on TDD as the most
+  practical grounding framework. Tests = executable specifications
+  that constrain solution space. Double-loop TDD (outer acceptance +
+  inner unit) maps to the ReAct thought-action-observation cycle.
+- *Spike → tracer bullet → walking skeleton:* a progression of
+  grounding strength. For AI, prototyping first is almost always
+  preferable because AI's domain knowledge is statistical, not
+  experiential.
+- *REPL-driven development, property-based testing, spec growth
+  engine:* each grounds a different concern. Grounding hierarchy
+  from Level 0 (pure reasoning) through Level 8 (production
+  monitoring).
+
+*** Flow audit
+
+Detailed in [[file:grounded-reasoning-design/audit.org][audit.org]].
+
+The current flow system is *15% grounded, 80% reasoning-based.*
+Decision gates at Steps 2, 3, 6, 8, 11 accumulate ungrounded
+reasoning with no reality checks. Existing grounding: =mix paranoid=
+at Steps 9/11/13/15, optional PoC at Research Step 5b, style
+calibration from recent commits.
+
+** Comparison
+
+*** Option A: Minimal — add grounding rules to CODE-QUALITY.md only
+
+Add principles ("verify before claiming", "run before asserting")
+as author/reviewer guidelines. No structural flow changes.
+
+Pros: zero overhead, immediate adoption.
+Cons: unenforceable — Claude follows rules inconsistently when they
+conflict with its tendency to reason rather than execute. The 80%
+reasoning gap persists.
+
+*** Option B: Spike gates at design phase + continuous TDD at implementation
+
+Insert mandatory reality-checks at key flow boundaries:
+- *Design phase:* spike gate after Step 1 (Author) — build a
+  minimal prototype to validate the core design assumption
+- *Implementation:* write tests FIRST for each commit, run
+  continuously, let failures guide implementation
+- *Review:* reviewer claims require evidence (file:line, test output)
+- *Avoidance detection:* flag excuse language, require verification
+
+Pros: addresses all three failure modes, integrates with existing
+flow structure, overhead is bounded (spike is time-boxed).
+Cons: moderate overhead (~20-30% longer flows), spike may be
+inapplicable for non-code changes.
+
+*** Option C: Full grounding protocol (all tiers from audit)
+
+Implement all three tiers from the audit: mandatory spike gates,
+continuous execution checkpoints, evidence-backed reviews, avoidance
+detector, integration smoke tests, specification compliance tests.
+
+Pros: maximum grounding.
+Cons: heavy overhead, risk of "grounding theatre" (running things
+to satisfy the process without genuine insight), some tiers are
+only justified for high-risk features.
+
+** Recommendation
+
+*Option B with selective elements from C.* The core shift is from
+"AI generates code" to "AI generates hypotheses that reality
+validates."
+
+*** Five grounding principles for DENOTE.md / CODE-QUALITY.md
+
+1. *Execution over reasoning:* when you can test a claim by running
+   code, run it. Don't reason about what "would" happen.
+2. *Separate generator and verifier:* never trust Claude to both
+   generate and validate. Write code, then run tests — separate
+   steps, separate verification.
+3. *Claims require evidence:* reviewer findings must cite specific
+   evidence (file:line, test output, error message). "This might
+   cause a race condition" without evidence is not a valid finding.
+4. *Freshness discipline:* re-read files before making claims about
+   their content. If more than ~5 steps have passed since reading a
+   file, re-read it before asserting facts about it.
+5. *Avoidance requires proof:* "pre-existing issue", "not worth
+   pursuing", "unlikely edge case" are claims that require evidence.
+   If you have not tested the claim, you cannot make it.
+
+*** Flow modifications
+
+**** Design phase: Spike Gate (after Step 1, before/parallel with Step 2)
+
+When the design involves a technical assumption that CAN be tested
+(API behavior, library capability, performance characteristic,
+protocol compatibility), build a minimal spike BEFORE the Critic
+and Boundary Analyst evaluate:
+
+- Time-boxed: 10-15 minutes maximum
+- Throwaway: spike code is not the implementation
+- Goal: validate or invalidate ONE key assumption
+- Output: spike result noted in journal.org, referenced by Critic
+- Skip when: the design is purely structural (module organization,
+  naming, data flow) with no testable technical assumption
+
+**** Implementation phase: Property-First TDD per commit
+
+Modify Step 9 (Implement) to follow property-first TDD per commit
+from the staging plan. The key addition (from Kent Beck's "test
+list" — the Canon TDD step most practitioners skip): enumerate
+which behavioral properties the test should validate BEFORE writing
+the test code.
+
+1. For each commit in the staging plan:
+   a. *Enumerate properties:* list the specific behavioral properties
+      this commit should validate. For each, decide: test now, test
+      later, or not tested (with reason). This produces a property
+      manifest — the specification for what the test covers.
+   b. Write the test(s) targeting the enumerated properties
+   c. Run tests — verify they fail (the behavior doesn't exist yet)
+   d. Implement the minimum code to pass the tests
+   e. Run tests — verify they pass
+   f. Commit (tests + implementation together, per blame-first
+      staging)
+
+*Property enumeration grounds the tests themselves.* Without it,
+Claude writes tests that check what's easy to assert (status code)
+rather than what matters (response schema, error handling, edge
+cases). The enumeration step forces the question: "which specific
+properties do I care about?"
+
+*Gradual enforcement:* properties are prioritized:
+- P0 (must test now): core behavior, response structure, error format
+- P1 (should test): input validation, specific values, error codes
+- P2 (test when mature): edge cases, idempotency, caching, timing
+- P3 (test for critical features): resource cleanup, timeouts
+
+Start with P0 properties. Add P1-P2 as the implementation stabilizes.
+This prevents both under-assertion (checking only that code runs) and
+over-assertion (checking implementation details that will change).
+
+Detailed framework in
+[[file:grounded-reasoning-design/property-first-testing.org][property-first-testing.org]].
+
+**** Review phase: Evidence-backed claims
+
+Modify the reviewer instructions (Step 10 / Step 3) to require:
+
+- Every finding rated High or Critical must include a *grounds*
+  field: the specific evidence (file path + line number, test output,
+  error reproduction, or benchmark result) that supports the claim.
+- Findings without evidence are downgraded to Info.
+- The Review Collator checks for evidence presence during
+  consolidation.
+
+**** Avoidance detection: Burden of proof
+
+Add to CODE-QUALITY.md and reviewer instructions:
+
+When Claude produces any of these phrases (or semantic equivalents),
+it MUST provide evidence:
+- "This is a pre-existing issue" → =git stash= + run tests to verify
+- "Not worth pursuing" → measure the impact (benchmark, test count)
+- "This edge case is unlikely" → write a property test or reproduce
+- "The library doesn't support X" → read the docs or try the call
+- "This would require too much refactoring" → estimate the scope
+  (file count, line count)
+
+If evidence cannot be obtained in <5 minutes, state "I have not
+verified this claim" instead of asserting it as fact.
+
+**** Design artifacts as grounding references
+
+The existing flow artifacts — design docs, research docs, journal.org,
+resolved.org, criticism.org, the Steward's intake comparison — are
+themselves grounding material. They record decisions, rationale, and
+the reasoning trail. These serve as a check against inference
+deviation in two ways:
+
+1. *Decision re-grounding:* when Claude is about to make a claim
+   about what was decided or why, it should re-read the resolved.org
+   or journal.org entry rather than reconstructing from memory.
+   Decisions are a form of reality — they were made for specific
+   reasons captured in writing. Re-reading the artifact prevents
+   the stale world model problem for the project's own decision
+   history.
+
+2. *Research as evidence:* completed research docs (with Findings,
+   Comparison, Decision sections) are first-class evidence. When
+   Claude reasons about trade-offs that were already researched, it
+   should cite the research doc rather than re-deriving the analysis.
+   This prevents fabrication of arguments that contradict documented
+   analysis.
+
+3. *The Steward already does this:* the Steward re-reads the intake
+   (Original Prompt, Steering, Goal, Constraints, Acceptance Criteria)
+   at intervention points S1-S4. This is grounding the design process
+   in the user's stated intent — a recorded artifact. The same
+   principle extends to ALL flow artifacts: prefer reading over
+   remembering.
+
+Rule: *when a flow artifact exists that addresses the question at
+hand, read the artifact rather than reasoning from memory.*
+
+** Decision
+
+Pending.
+
+** Open Questions
+
+1. *Spike gate applicability:* how often do design-phase features
+   have a testable technical assumption? If most features are
+   structural, the spike gate fires rarely. Should it be default-on
+   or triggered by a flag in the intake?
+
+2. *TDD strictness:* should the tests-first rule be mandatory for
+   every commit, or just for core/behavioral commits (skipping
+   renames, scaffolding)?
+
+3. *Evidence threshold for reviewers:* requiring evidence for every
+   High/Critical finding adds work. Should this apply only to
+   findings that make empirical claims ("this will cause X"), not
+   structural observations ("this module has mixed concerns")?
+
+4. *Non-code projects:* how does grounding work for research flows
+   or design-only flows where there is no code to run? The spike
+   gate can validate external claims (does this library actually
+   support X?), but what grounds a design-phase argument about
+   module boundaries?
+
+5. *Avoidance detection sensitivity:* the phrase list ("pre-existing
+   issue", etc.) could produce false positives when Claude legitimately
+   identifies a known issue. How to distinguish genuine identification
+   from avoidance?

@@ -1,0 +1,616 @@
+#+STARTUP: overview
+#+title:      Research: Anti-Confabulation --- Grounding LLM Reasoning Against Reality
+#+date:       [2026-07-31 Thu]
+#+filetags:   :research:confabulation:grounding:hallucination:verification:
+#+identifier: 20260731T150000
+
+* Research: Anti-Confabulation --- Grounding LLM Reasoning Against Reality
+
+This document synthesizes web research on three failure modes of
+ungrounded LLM reasoning in coding tasks (deviation, fabrication,
+avoidance) and the grounding mechanisms that prevent them.
+
+* 1 The Three Failure Modes
+
+** 1.1 Deviation --- Reasoning Drifts from Codebase Reality
+
+Over multiple reasoning steps, the model's internal understanding of
+the codebase diverges from actual state. The model reasons about code
+as it was N steps ago, unaware of intervening changes (by itself or
+concurrent processes).
+
+*** The "Stale World Model" Problem
+
+Research identifies this as the *Stale World Model Problem* in
+long-running agents. Long-running AI agents silently accumulate stale
+assumptions about external state (files, APIs, databases) that diverge
+from reality mid-task. This is one of the most under-discussed failure
+modes in production agentic systems.
+
+Source: Tian Pan, "The Stale World Model Problem in Long-Running
+Agents" (2026).
+
+Key findings:
+- At 85% per-step reliability, a 10-step task succeeds only ~20% of
+  the time due to error compounding.
+- A later observation can invalidate an earlier belief /without
+  explicitly correcting it/, requiring the agent to infer that a
+  stored fact is now wrong.
+- Explicit conflicts (direct contradiction) require only surface
+  matching. /Implicit/ conflicts require multi-step reasoning ---
+  e.g., inferring that a stored fact about module X is now wrong
+  because module Y (which X depends on) was modified.
+- On a 1,200-query benchmark, the best frontier model achieved only
+  55.2% at detecting stale memories.
+
+*** Context Rot and Drift
+
+Each response an agent gives becomes part of the context for the next
+response. If the agent makes a small mistake or drift early on, that
+mistake gets baked into the context and future responses build on it.
+The errors do not just persist --- they compound.
+
+Source: MindStudio, "What Is Context Rot in AI Agents" (2026); DEV
+Community, "Context Bankruptcy: The Case for Strategic Forgetting."
+
+Observable signals of context rot:
+- Repeated questions the agent already answered
+- Contradicted decisions
+- Instruction drift --- constraints set at the start stop being
+  applied consistently
+
+*** Why Pure Re-reading Does Not Suffice
+
+Stale intermediate reasoning (chain-of-thought that was correct early)
+becomes actively misleading later. The agent formed a plan based on
+incomplete information that remains in context, competing with updated
+understanding. There is no mechanism to mark old reasoning as
+superseded.
+
+** 1.2 Fabrication --- Inventing Technical Justifications Without Evidence
+
+The model generates plausible-sounding but false technical claims:
+non-existent APIs, fabricated library capabilities, incorrect behavior
+descriptions, post-hoc rationalizations for generated code.
+
+*** The CodeHalu Taxonomy
+
+The CodeHalu framework (AAAI 2025) categorizes code hallucinations
+into four types, each with subcategories:
+
+1. *Mapping Hallucinations:* Ambiguity and confusion in perception of
+   data types, values, and structures during data operations.
+   - Data compliance hallucinations
+   - Structure access hallucinations
+
+2. *Naming Hallucinations:* Confusing or incorrect variable/function
+   names, including referencing names that do not exist.
+
+3. *Resource Hallucinations:* Referencing resources (packages,
+   modules, APIs, functions) that do not exist. This is the notorious
+   "package hallucination" problem --- LLMs invent package names that
+   look plausible, creating a supply-chain attack vector
+   ("slopsquatting").
+
+4. *Logic Hallucinations:* The model's understanding of how the code
+   should behave is fundamentally flawed. Found to be the *most
+   prevalent* type among frontier LLMs.
+
+Source: Liu et al., "CodeHalu: Investigating Code Hallucinations in
+LLMs via Execution-based Verification" (AAAI 2025). Benchmark:
+CodeHaluEval, 8,883 samples from 699 tasks.
+
+*** The Post-Hoc Rationalization Problem
+
+LLM explanations are often post-hoc rationalizations rather than
+faithful reflections of the model's actual reasoning process.
+Functionally similar code can receive different explanations based on
+prompt context, reducing trust in the tool's reliability. Assertive
+justifications lead developers to trust flawed outputs.
+
+Source: ACM Computing Surveys, "SE Perspective on LLMs: Biases in Code
+Generation, Code Interpretability, and Code Security Risks" (2025).
+
+*** The "Inferential Opacity" Problem
+
+An LLM response is "inferentially opaque" when it does not report
+which evidence supports each claim. Closing this opacity requires that
+each claim be tied to an extractive ground --- a specific source span
+that justifies the claim and can be audited independently.
+
+*** Package Hallucination Persists in Frontier Models (2026)
+
+Even frontier code-capable LLMs released between October 2025 and
+March 2026 (Claude Sonnet 4.6, GPT-5.4-mini, Gemini 2.5 Pro,
+DeepSeek V3.2) still exhibit package hallucination in code generation.
+The range has shrunk, but the threat remains.
+
+Source: "The Range Shrinks, the Threat Remains: Re-evaluating LLM
+Package Hallucinations on the 2026 Frontier-Model Cohort" (arXiv,
+2026).
+
+** 1.3 Avoidance --- Generating Excuses to Skip Complex Work
+
+The model takes shortcuts, declares tasks done prematurely, or invents
+reasons to avoid difficult work.
+
+*** Lazy Learning and Shortcut Exploitation
+
+LLMs are "lazy learners" that exploit shortcuts in prompts for
+downstream tasks. Due to training methods, data, and model
+architectures, they rely on shortcuts to learn spurious correlations,
+resulting in hallucinations and errors.
+
+Source: "Large Language Models Can be Lazy Learners: Analyze Shortcuts
+in In-Context Learning" (arXiv:2305.17256).
+
+Specific shortcut behaviors observed:
+- When the borrow checker rejects code, LLMs resort to =unsafe=
+  blocks or raw pointers to suppress errors rather than fixing the
+  design.
+- LLMs prioritize suggesting strategies over producing code,
+  sometimes returning strategy descriptions /as code/.
+- Pattern-following over engineering: one plausible shortcut gets
+  copied, then future sessions treat it as ground truth, causing
+  drift.
+
+Source: "LLMs Taking Shortcuts in Test Generation: A Study with SAP
+HANA and LevelDB" (arXiv, 2025).
+
+*** Premature Completion / "Declaring Victory Too Early"
+
+The "stopping too early" anti-pattern occurs when an agent terminates
+before all required steps have been executed. The agent is both the
+worker /and/ the judge, so it has every incentive to declare victory.
+
+The dominant failure pattern is *completion theatre*: the agent
+narrates a polished closing summary but never actually runs the
+required terminal verification.
+
+Source: AgentPatterns.ai, "Premature Completion: Agents That Declare
+Success Too Early" (2026); WalkingLabs, "Lecture 9: Preventing Agents
+from Declaring Victory Too Early."
+
+Key statistics:
+- Agents "fix" correct code more than 50% of the time (false
+  positive action).
+- Modern neural networks are systematically overconfident --- their
+  reported confidence is significantly higher than actual accuracy.
+- Transcript-based verifiers (pattern-matching "all tests passing" in
+  agent output) provide *zero* additional signal over no verification
+  at all.
+
+*** What Does Not Work Against Avoidance
+
+- Pre-completion checklists in prompts (the model checks the boxes
+  without doing the work)
+- Asking the model to self-evaluate completion (worker grading its
+  own homework)
+
+What works: externalized, execution-based verification.
+
+* 2 Grounding Mechanisms: How Running Code Prevents These
+
+** 2.1 What Is Grounding?
+
+AI grounding is the practice of anchoring an AI model's responses to
+verified, retrievable source material rather than letting it rely
+solely on training data. While grounding does not entirely eliminate
+hallucinations, it reduces them dramatically and --- when paired with
+citations and observability --- makes them /detectable/ when they
+occur.
+
+Source: Decagon, "What is AI Grounding? How It Works and Why It
+Prevents Hallucinations" (2026).
+
+For coding agents specifically, grounding has two dimensions:
+
+1. *Static grounding:* Anchor reasoning to the actual codebase (read
+   files, grep for identifiers, check types).
+2. *Dynamic grounding:* Anchor reasoning to the program's runtime
+   behavior (execute code, run tests, observe output).
+
+Dynamic grounding is strictly stronger because it catches errors that
+static analysis cannot (runtime exceptions, integration failures,
+performance characteristics, environment-specific behavior).
+
+** 2.2 Execution-Based Verification
+
+The CodeHalu research demonstrates that execution-based verification
+is the most reliable way to detect code hallucinations. Syntactically
+correct code that "looks right" often fails at runtime. Running code
+is the ground truth.
+
+Key principle: *Generate and Verify must be separate steps.* AI
+sometimes fabricates test results and passing outputs, so a model must
+never be trusted to both generate /and/ validate --- generation and
+verification must be in separate steps, with verification against
+actual execution.
+
+Source: "Testing AI-Generated Code" (SitePoint, 2025); "Stop AI Agent
+Hallucinations: 4 Essential Techniques" (DEV Community / AWS, 2025).
+
+** 2.3 RLEF --- Reinforcement Learning from Execution Feedback
+
+RLEF trains LLMs using execution outcomes as reward signals. The cycle:
+1. Generate code
+2. Execute in sandboxed environment
+3. Capture execution feedback (pass/fail, errors, output)
+4. Use feedback as reinforcement signal
+5. Generate refined version incorporating lessons
+
+This produces significant accuracy improvements. Diffblue Cover
+achieves >95% accuracy in unit test generation through execution-based
+RL (>99% in some studies).
+
+Source: "RLEF: Grounding Code LLMs in Execution Feedback with
+Reinforcement Learning" (arXiv:2410.02089).
+
+** 2.4 The "Grounded" Hooks Project
+
+The "Grounded" project (GitHub: Pinperepette/grounded) implements
+Claude Code hooks that enforce tool usage and prevent hallucinations.
+Key insight: *a system prompt is a request; a hook is a guarantee.*
+
+Mechanisms:
+- *Pre-flight planning:* Before Claude responds, pre-flight analyzes
+  the prompt for intent and injects a concrete required tool sequence
+  (e.g., verify identifiers exist, read files before modification).
+- *Confidence-check:* Extracts claimed identifiers from response text
+  and verifies each via =rg= in parallel to detect hallucinations.
+- *Blocking enforcement:* When a PreToolUse hook exits with blocking
+  status, the tool call is blocked regardless of model intent ---
+  deterministic enforcement where prompts are probabilistic.
+
+Source: GitHub, Pinperepette/grounded (2025).
+
+** 2.5 Anthropic's Official Guidance on Reducing Hallucinations
+
+From Anthropic's documentation (docs.claude.com):
+
+1. *Direct information provision:* Give Claude the information rather
+   than asking it to retrieve or infer. Accuracy goes up
+   significantly when working from provided data, not from memory.
+2. *Allow uncertainty:* Explicitly give Claude permission to admit
+   uncertainty. This simple technique drastically reduces false
+   information.
+3. *Use direct quotes:* For tasks involving long documents (>20K
+   tokens), ask Claude to extract word-for-word quotes /first/ before
+   performing its task. This grounds responses in actual text.
+4. *RAG for knowledge-intensive tasks:* When Claude retrieves from
+   your documents before answering, it is grounded in verified
+   material.
+
+Source: Anthropic, "Reduce Hallucinations" (platform.claude.com).
+
+* 3 Self-Correction Patterns
+
+** 3.1 Reflexion
+
+Reflexion is a technique where an AI agent evaluates and improves its
+own responses through iterative feedback loops. Unlike simple
+reflection, Reflexion performs multiple attempts, stores insights from
+each trial, and uses accumulated knowledge to improve subsequent
+attempts.
+
+Core loop:
+1. Generate initial response
+2. Execute and observe results
+3. Reflect on failures (convert feedback to natural-language guidance)
+4. Use accumulated insights for next attempt
+
+Performance: Reflexion improves pass@1 accuracy by 11 points on
+HumanEval and exact-match accuracy by ~20 points on HotPotQA over
+baseline CoT/ReAct agents.
+
+Source: Shinn et al., "Reflexion: Language Agents with Verbal
+Reinforcement Learning" (NeurIPS 2023); Agent Patterns library
+documentation (agent-patterns.readthedocs.io).
+
+Critical distinction from pure self-reflection: Reflexion requires
+*execution feedback*, not just the model re-reading its own output.
+The reflection is /on execution results/, not on reasoning alone.
+Without execution, you get the model confirming its own
+hallucinations.
+
+** 3.2 Chain of Verification (CoVe)
+
+Chain-of-Verification prompting improves upon initial LLM responses by
+systematically verifying claims. Four steps:
+
+1. *Generate baseline response:* LLM responds to the query.
+2. *Plan verifications:* LLM generates verification questions that
+   could reveal mistakes in the baseline.
+3. *Answer verifications independently:* LLM answers each
+   verification question in isolation (to avoid confirmation bias
+   from the baseline response).
+4. *Generate verified response:* Integrate verification answers into
+   a refined final response.
+
+Key insight: LLMs tend to provide more accurate answers to /simple/
+questions (verification questions) than to /complex/ questions
+(original query). By decomposing complex claims into simple verifiable
+sub-questions, accuracy improves without training or fine-tuning.
+
+Source: Dhuliawala et al., "Chain-of-Verification Reduces
+Hallucination in Large Language Models" (Meta AI, arXiv:2309.11495).
+
+Limitation for coding: CoVe works well for factual claims but the
+verification questions are still answered by the same model. For code,
+*execution-based verification* (actually running the code) is strictly
+stronger than model-based verification (asking the model if the code
+is correct).
+
+** 3.3 Multi-Agent Validation
+
+Using multiple agents to cross-check each other's outputs. Multi-Agent
+Reflexion (MAR) extends the single-agent pattern: multiple agents
+reflect on each other's outputs, catching errors that individual
+agents miss.
+
+Source: "MAR: Multi-Agent Reflexion Improves Reasoning Abilities in
+LLMs" (arXiv:2512.20845).
+
+This is already partially implemented in the existing flow system
+(multiple reviewers checking Author output). The gap is that current
+reviewers check /from reasoning/, not from /execution/.
+
+* 4 Anti-Pattern Table: Ungrounded vs. Grounded Antidotes
+
+** 4.1 Fabrication Anti-Patterns
+
+| Failure mode | Ungrounded behavior | Grounded antidote |
+|--------------+---------------------+-------------------|
+| "This won't work | Pure reasoning from | Write a minimal spike: |
+| because X" | training data; X may | 10-line script testing |
+| | be false or outdated | the specific claim X. |
+| | | Run it. Report result. |
+|--------------+---------------------+-------------------|
+| "The library | Assumption from | Read the actual docs |
+| supports Y" | name pattern | (=WebFetch=). Or: write |
+| | matching in | a 3-line script calling |
+| | training data | Y, run it, observe the |
+| | | error or success. |
+|--------------+---------------------+-------------------|
+| "This API returns | Memory of similar | =curl= the endpoint or |
+| format Z" | APIs from training | write a test that |
+| | | asserts the format. |
+| | | Run it against the |
+| | | actual API. |
+|--------------+---------------------+-------------------|
+| "Module A behaves | Reading A three | Re-read A /now/. If the |
+| like this" | steps ago; A may | claim matters for the |
+| | have changed | decision, =grep= or |
+| | | =Read= the specific |
+| | | function before |
+| | | reasoning about it. |
+
+** 4.2 Avoidance Anti-Patterns
+
+| Failure mode | Ungrounded behavior | Grounded antidote |
+|--------------+---------------------+-------------------|
+| "Pre-existing | Assumption; never | =git stash= the current |
+| issue, not ours" | verified whether | changes, run the test |
+| | the issue exists | suite, observe whether |
+| | on the base branch | the failure exists on |
+| | | the base. =git stash pop=. |
+| | | Report the comparison. |
+|--------------+---------------------+-------------------|
+| "Not worth | Opinion without | Measure: write a |
+| pursuing" | measurement | benchmark or count |
+| | | affected cases. "Not |
+| | | worth it" requires a |
+| | | number. |
+|--------------+---------------------+-------------------|
+| "Edge case, | Intuition about | Write a property-based |
+| unlikely" | probability | test (e.g., StreamData |
+| | without analysis | in Elixir, fast-check |
+| | | in JS). Let random |
+| | | inputs find the edge |
+| | | case or prove it rare. |
+|--------------+---------------------+-------------------|
+| "This is too | Scope avoidance; | Break it into a spike: |
+| complex to | premature | implement the smallest |
+| change" | termination | version that tests |
+| | | feasibility. If the |
+| | | spike works, the full |
+| | | change is tractable. |
+|--------------+---------------------+-------------------|
+| "Tests pass" | Completion theatre; | Show the actual test |
+| (without | narrating success | output. If tests were |
+| running them) | without execution | not run, run them now. |
+| | | Paste the terminal |
+| | | output, not a summary. |
+
+** 4.3 Deviation Anti-Patterns
+
+| Failure mode | Ungrounded behavior | Grounded antidote |
+|--------------+---------------------+-------------------|
+| Reasoning about | Using context from | Re-read the file |
+| stale code | N steps ago; code | /before/ reasoning |
+| | has changed since | about it. Treat file |
+| | | reads as having a TTL |
+| | | (time-to-live). |
+|--------------+---------------------+-------------------|
+| Plan based on | Plan was correct | Before executing step |
+| outdated | when formed; state | N of a plan, verify |
+| assumptions | has changed since | that the assumptions |
+| | | from step 1 still |
+| | | hold. Re-read, re-run, |
+| | | re-check. |
+|--------------+---------------------+-------------------|
+| Compounding | Small error in step | After each significant |
+| errors across | 1 becomes the | step, run the test |
+| steps | foundation for | suite. Treat test |
+| | steps 2-10 | failure as a signal |
+| | | to re-examine /all/ |
+| | | prior assumptions, |
+| | | not just the latest |
+| | | change. |
+|--------------+---------------------+-------------------|
+| Context rot in | Constraints from | Periodically re-read |
+| long sessions | session start stop | the original |
+| | being applied | requirements /and/ the |
+| | | current state of the |
+| | | code. Compare them. |
+| | | Flag any divergence. |
+
+* 5 Grounding Principles Distilled
+
+From the research, five core principles emerge:
+
+** Principle 1: Execution Over Reasoning
+
+When a claim can be tested by running code, *run the code*. Pure
+reasoning about code behavior is the single largest source of
+hallucination in coding agents. The model's confidence in its
+reasoning has near-zero correlation with correctness.
+
+Corollary: "I think this will work" is not evidence. "I ran it and
+here is the output" /is/ evidence.
+
+** Principle 2: Separate Generator and Verifier
+
+The entity that generates a claim must not be the sole entity that
+verifies it. In practice:
+- Code the model writes must be verified by /execution/, not by the
+  model re-reading its own code.
+- Claims about the codebase must be verified by /tool use/ (Read,
+  Grep, Bash), not by memory.
+- Completion claims must be verified by /running tests/, not by the
+  model asserting "all tests pass."
+
+This is the coding equivalent of the audit principle: the person who
+writes the check should not be the person who reconciles the bank
+statement.
+
+** Principle 3: Claims Require Extractive Grounds
+
+Every technical claim in a design or review should be traceable to a
+specific source:
+- A file path and line number for code claims
+- A test name and its output for behavior claims
+- A URL or doc reference for library/API claims
+- A benchmark result for performance claims
+
+If a claim cannot be traced to a source, it is an /opinion/ and
+should be labeled as such. Opinions are acceptable when explicitly
+flagged; they are dangerous when presented as facts.
+
+** Principle 4: Freshness Discipline (TTL for Facts)
+
+Facts about mutable state (code, test results, environment) have a
+time-to-live. After N reasoning steps or M minutes, previously-read
+state should be re-verified before being used as the basis for
+decisions. The specific thresholds depend on context:
+- Code that was just modified: re-read immediately before reasoning
+- Code read 5+ steps ago: re-read if reasoning depends on it
+- Test results from before code changes: re-run, do not cite old
+  results
+
+** Principle 5: Avoidance Requires Burden of Proof
+
+Any claim that work should /not/ be done carries the burden of proof:
+- "Pre-existing issue" requires demonstrating the issue exists on the
+  base branch (=git stash= + test, or =git diff=).
+- "Not worth pursuing" requires a measurement (count of affected
+  cases, benchmark comparison, complexity estimate with evidence).
+- "Edge case unlikely" requires either a probability argument with
+  data or a property test showing the case does not arise.
+- "Too complex" requires identifying the specific complexity barrier
+  and attempting a minimal spike to test feasibility.
+
+The default stance is: *if you have not tested the claim, you cannot
+make it.* You can say "I have not tested whether this is pre-existing"
+--- that is honest. You cannot say "this is pre-existing" without
+testing it.
+
+* 6 How These Map to Flow Modifications
+
+** 6.1 Design Phase Grounding
+
+Insert a *spike gate* after the Author produces a design and before
+the Critic evaluates it:
+- Author identifies the riskiest assumption in the design
+- A spike (minimal prototype) is executed to test that assumption
+- Spike results become input to the Critic
+- The Critic evaluates the design /in light of spike results/, not
+  purely from reasoning
+
+** 6.2 Implementation Phase Grounding
+
+Insert *continuous execution checkpoints*:
+- After each file modification, run the relevant test subset
+- Treat test failure as a signal to re-examine assumptions, not just
+  fix the immediate error
+- Before claiming a step is complete, show actual test output
+
+** 6.3 Review Phase Grounding
+
+Modify reviewer instructions to require *evidence-backed claims*:
+- Reviewers must cite file:line for code claims
+- Reviewers must reference test output for behavior claims
+- Claims without evidence are flagged as "unverified opinion"
+- A "verification reviewer" runs the code and reports results
+
+** 6.4 Avoidance Detection
+
+Add an *avoidance detector* that flags specific language patterns:
+- "pre-existing issue" -> requires =git stash= verification
+- "not worth pursuing" -> requires measurement
+- "edge case" -> requires property test or probability argument
+- "too complex" -> requires spike attempt
+- "out of scope" -> requires explicit user confirmation (the user
+  defines scope, not the model)
+
+* 7 Sources
+
+** Confabulation and Code Hallucination
+- [[https://arxiv.org/pdf/2405.00253][CodeHalu: Investigating Code Hallucinations in LLMs via Execution-based Verification]] (AAAI 2025)
+- [[https://arxiv.org/pdf/2511.00776][Systematic Literature Review of Code Hallucinations in LLMs]] (arXiv 2025)
+- [[https://arxiv.org/pdf/2605.17062][The Range Shrinks, the Threat Remains: Re-evaluating LLM Package Hallucinations on the 2026 Frontier-Model Cohort]] (arXiv 2026)
+- [[https://arxiv.org/pdf/2409.20550][LLM Hallucinations in Practical Code Generation: Phenomena, Mechanism, and Mitigation]] (ACM 2024)
+- [[https://albertoarena.it/posts/ai-hallucination-in-coding-agents/][When Your AI Writes Confident Nonsense]] (Alberto Arena, 2025)
+- [[https://simonwillison.net/2025/Mar/2/hallucinations-in-code/][Hallucinations in code are the least dangerous form of LLM mistakes]] (Simon Willison, 2025)
+
+** Avoidance, Laziness, and Premature Completion
+- [[https://arxiv.org/abs/2305.17256][Large Language Models Can be Lazy Learners: Analyze Shortcuts in In-Context Learning]] (arXiv 2023)
+- [[https://arxiv.org/html/2604.14437][LLMs Taking Shortcuts in Test Generation: A Study with SAP HANA and LevelDB]] (arXiv 2025)
+- [[https://agentpatterns.ai/anti-patterns/premature-completion/][Premature Completion: Agents That Declare Success Too Early]] (AgentPatterns.ai)
+- [[https://walkinglabs.github.io/learn-harness-engineering/en/lectures/lecture-09-why-agents-declare-victory-too-early/][Lecture 9: Preventing Agents from Declaring Victory Too Early]] (WalkingLabs)
+- [[https://dev.to/singhdevhub/how-we-prevent-ai-agents-drift-code-slop-generation-2eb7][How We Prevent AI Agent's Drift and Code Slop Generation]] (DEV Community)
+
+** Context Rot, Drift, and Stale World Models
+- [[https://tianpan.co/blog/2026-04-10-stale-world-model-long-running-agents][The Stale World Model Problem in Long-Running Agents]] (Tian Pan, 2026)
+- [[https://www.mindstudio.ai/blog/what-is-context-rot-ai-agents][What Is Context Rot in AI Agents and How Do You Prevent It?]] (MindStudio, 2026)
+- [[https://dev.to/googleai/context-bankruptcy-the-case-for-strategic-forgetting-for-ai-agents-3c5][Context Bankruptcy: The Case for Strategic Forgetting for AI Agents]] (Google AI / DEV Community)
+- [[https://prassanna.io/blog/agent-drift/][Agent Drift in AI Systems]] (Prassanna Ravishankar)
+- [[https://tandemly.ai/research/stale-agent-memory-validity][STALE: When Agent Memory Becomes a Liability]] (Tandemly Research)
+
+** Grounding and Execution Feedback
+- [[https://decagon.ai/glossary/what-is-ai-grounding][What is AI Grounding? How It Works and Why It Prevents Hallucinations]] (Decagon)
+- [[https://undo.io/resources/detect-mitigate-ai-hallucination/][Detecting and Mitigating the AI Hallucination Problem]] (Undo.io)
+- [[https://arxiv.org/html/2410.02089][RLEF: Grounding Code LLMs in Execution Feedback with Reinforcement Learning]] (arXiv 2024)
+- [[https://arxiv.org/html/2505.02133v1][Enhancing LLM Code Generation: Multi-Agent Collaboration and Runtime Debugging]] (arXiv 2025)
+- [[https://github.com/Pinperepette/grounded][Grounded: Claude Code Hooks for Hallucination Prevention]] (GitHub)
+
+** Self-Correction Patterns
+- [[https://agent-patterns.readthedocs.io/en/stable/patterns/reflexion.html][Reflexion Agent Pattern]] (Agent Patterns documentation)
+- [[https://medium.com/@pratikmarutest/reflexion-in-ai-building-self-improving-llm-systems-with-code-de954743e968][Reflexion in AI: Building Self-Improving LLM Systems]] (Medium)
+- [[https://arxiv.org/pdf/2309.11495][Chain-of-Verification Reduces Hallucination in Large Language Models]] (Meta AI, arXiv 2023)
+- [[https://learnprompting.org/docs/advanced/self_criticism/chain_of_verification][Chain-of-Verification (CoVe): Reduce LLM Hallucinations]] (Learn Prompting)
+- [[https://arxiv.org/html/2512.20845v2][MAR: Multi-Agent Reflexion Improves Reasoning Abilities in LLMs]] (arXiv 2025)
+
+** Anthropic Official Guidance
+- [[https://docs.claude.com/en/docs/test-and-evaluate/strengthen-guardrails/reduce-hallucinations][Reduce Hallucinations]] (Claude Documentation)
+- [[https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations][Reduce Hallucinations]] (Claude Platform Documentation)
+
+** Property Testing and Edge Case Verification
+- [[https://arxiv.org/html/2510.25297][Understanding the Characteristics of LLM-Generated Property-Based Tests in Exploring Edge Cases]] (arXiv 2025)
+- [[https://kiro.dev/blog/property-based-testing/][Does Your Code Match Your Spec?]] (Kiro)
+- [[https://testkube.io/blog/testing-ai-generated-code][How to Test AI-Generated Code (Before It Breaks Production)]] (Testkube)
+
+** Agent Architecture and Verification
+- [[https://arxiv.org/html/2603.05344v2][Building Effective AI Coding Agents for the Terminal]] (arXiv 2026)
+- [[https://ralphable.com/blog/claude-code-hallucination-problem-atomic-skills-reliable-output][The Claude Code Hallucination Problem: Atomic Skills and Pass/Fail Criteria]] (Ralphable, 2026)
+- [[https://medium.com/@spacholski99/stop-prompting-start-architecting-how-senior-devs-tame-claude-code-hallucinations-cad528633c4e][Stop Prompting, Start Architecting: How Senior Devs Tame Claude Code Hallucinations]] (Medium)
