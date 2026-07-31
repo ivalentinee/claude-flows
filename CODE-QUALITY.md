@@ -166,6 +166,30 @@ code. Five principles:
   are claims that require evidence. If you have not tested the claim,
   you cannot make it. Verify: `git stash` + run tests, measure with
   a benchmark, write a property test, or read the actual docs.
+- "Behavior unchanged" requires the same evidence as "behavior
+  changed." If claiming an issue is pre-existing, prove the code
+  is identical in main AND causes the issue there too.
+
+**Ground in reality, not in user's statements.**
+- When the user proposes a technical approach, check it against
+  actual code before implementing. If the code shows the user's
+  model is wrong, inform before complying — state what the code
+  actually shows, what the consequences are, let the user decide.
+- This is not about disagreeing with the user. It is about Claude
+  grounding its output in code reality, which creates productive
+  friction that helps BOTH sides discover model drift.
+- When Claude disagrees after checking: state the objection in one
+  sentence with specific evidence, then comply if the user confirms.
+  Record the disagreement. Never silently comply when evidence
+  suggests the direction is wrong — but also never refuse.
+
+**Evidence is not only execution.**
+- A structural observation ("this module has mixed concerns") is
+  grounded when the concerns are enumerated in writing without
+  contradiction. Writing them down IS the evidence.
+- Evidence spectrum: execution (test output, benchmark) >
+  articulable enumeration (written list that survives scrutiny) >
+  ungrounded assertion ("I think this might...").
 
 ### Property-First Test Design
 

@@ -319,6 +319,12 @@ questions, and the same source files.
   - *Drift:* specific divergence added to `criticism.org` tagged
     `[Critical]` with `*Source:* Steward (intent check)`.
   - *Annotation:* note in `journal.org` tracking observed evolution.
+- **Self-contradiction check:** before comparing design vs intake,
+  check whether the Steering log contradicts the Original Prompt.
+  If the user's steering overrides their own original intent, flag
+  this explicitly so the decision is conscious: "Your steering at
+  [time] changes your original direction on [topic]. Confirming
+  this is intentional?"
 - The Steward does NOT critique design quality, suggest alternatives,
   or make autonomous decisions. It only checks intent alignment.
 - Append journal entry.
@@ -393,7 +399,11 @@ When the user provides answers:
 1. **Apply answers** — update design doc, move resolved items to
    `resolved.org`
 2. **Validator subagent** — check answers for vagueness,
-   contradictions, implicit new questions
+   contradictions, implicit new questions, AND constraint
+   violations. The Validator also reads Original Prompt,
+   Constraints, Acceptance Criteria, and Preserved Invariants —
+   if any answer contradicts these, flag it: "This answer would
+   violate [constraint]. Proceed anyway?"
 3. **Critic + Boundary Analyst re-evaluation** (parallel)
 4. Auto-resolve any new `[Auto]` items
 5. If new `[Critical]` items emerged, return to Step 5
@@ -666,6 +676,9 @@ Present both files to the user. **Wait for user** to fill in
 - Did each fix address its review note?
 - Did any fix introduce new issues or regressions?
 - Do changes still match the finalized design?
+- Do changes still honor the original intake (Original Prompt,
+  Constraints, Acceptance Criteria, Preserved Invariants)? If a
+  user-requested fix violates an original constraint, flag it.
 
 **Step 13c — Update review plan.** Update `review-plan.org`:
 - Modified files: uncheck, update description to latest change only
@@ -744,8 +757,8 @@ convention.
 |---------|--------|
 | `init <name-or-description>` | Create `designs/<feature>.org` with the intake template and `designs/<feature>-design/` directory. Derives kebab-case filename (strip filler words, noun phrases, max 3-4 words). Does not start the flow — the user fills in the intake fields first. |
 | `full [<feature-name>]` | Start from Step 1. Reads the intake doc, then runs through all phases automatically, pausing only for Critical escalations (Step 5) and user review (Step 12). If `<feature-name>` is omitted, infer from the most recently initialized or active feature. |
-| `loop` | In design phase: process `answers.org` (Step 5a). In implementation phase: process `review-notes.org` (Step 13). |
-| `finalize` | In design phase: run Step 7. In implementation phase: run Step 14. |
+| `loop` | In design phase: process `answers.org` (Step 5a). In implementation phase: process `review-notes.org` (Step 13). **Cumulative drift check:** re-read ALL Steering entries, check aggregate drift against Original Prompt. |
+| `finalize` | In design phase: run Step 7. In implementation phase: run Step 14. **Cumulative drift check** before finalizing. |
 | `commit` | Run Step 15. |
 | `resume` | Detect current state from existing files + git status, report where we are, and continue from the appropriate step. |
 | `retro` | Post-completion retrospective (3-5 bullets, no files created). |
@@ -785,9 +798,26 @@ After a **light** pass, skip the recap.
 ### Step-Boundary Steering
 
 Between flow phases, check if the user typed anything in chat.
-Treat messages as inline amendments (additional context, scope
-adjustments, corrections). Acknowledge briefly and incorporate
-into the next step.
+Before incorporating any steering message:
+
+1. Append to the `** Steering` section with timestamp
+2. **Contradiction check:** does this steering contradict the
+   Original Prompt, Goal, Constraints, or Acceptance Criteria?
+   - If yes: flag explicitly — "This changes your original
+     direction: [Original said X, this says Y]. Confirming this
+     is intentional?" Record the user's confirmation as an
+     administrative decision.
+   - If no: incorporate into the next step.
+3. If the steering proposes a technical approach (not a preference
+   or scope decision): check it against actual code before
+   incorporating. If the code shows the user's model is wrong,
+   inform before complying (Grounded Informed Consent).
+
+**State-and-Comply default:** when Claude disagrees with user
+direction after checking, state the objection in one sentence with
+specific evidence, then comply if the user confirms. Record the
+disagreement in journal.org. Never silently comply when evidence
+suggests the direction is wrong — but also never refuse.
 
 ---
 

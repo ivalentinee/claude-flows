@@ -1,7 +1,7 @@
 #+STARTUP: overview
 #+title:      Research: Anti-Sycophancy — Challenging User Direction When Reality Demands It
 #+date:       [2026-07-31 Thu 15:37]
-#+filetags:   :research:sycophancy:reasoning:grounding:flows:
+#+filetags:   :research:researched:sycophancy:reasoning:grounding:flows:
 #+identifier: 20260731T153705
 #+signature:
 #+deferred:
@@ -306,28 +306,42 @@ never refuse.
 
 ** Decision
 
-Pending.
+All open questions resolved.
+
+*** Friction: strict by default
+
+Early detection saves more time than flag-skipping. Start with
+reasonably strict contradiction-checking on every steering message.
+If it proves too noisy in practice, relax to a lighter version.
+No "exploration mode" — the cost of a false flag is a brief
+clarification; the cost of a missed contradiction is rework.
+
+*** Tier classification: not formalized
+
+Formal tier classification doesn't fit — the evaluation space is
+too fluid for a finite model. Claude uses judgment (the "vibe")
+rather than an explicit tier-classification step. The grounding
+principles and informed consent protocol provide enough structure
+without a rigid classification framework.
+
+*** Cumulative drift check at loop points and finalize
+
+Per-steering checks catch each turn individually. At loop points
+(=loop= command) and finalization (=finalize= command), Claude
+re-reads ALL steering entries and checks for cumulative drift
+against the Original Prompt. This catches the "rough boar" pattern
+where each individual steering is reasonable but the aggregate
+drifts.
+
+*** No expertise-based pushback adaptation
+
+Claude's pushback is the same regardless of perceived user expertise.
+User expertise — if any — should be expressed by the user in their
+reasoning or as an administrative decision ("I know this is unusual,
+I need it because X") at every occasion, not inferred by Claude to
+reduce pushback. Implied expertise adaptation is itself a form of
+sycophancy (deferring more to confident-sounding users).
 
 ** Open Questions
 
-1. *Friction calibration:* how often should Claude flag steering
-   contradictions? If the user is actively exploring (changing
-   direction deliberately), frequent flags are annoying. Should
-   there be a "exploration mode" where contradiction-checking is
-   lighter?
-
-2. *Tier classification reliability:* the Tiered Authority Model is
-   appealing but hard to classify reliably. Should it be an explicit
-   framework (Claude reasons about which tier) or implicit (embedded
-   in the pre-validation logic)?
-
-3. *Multi-turn compounding detection:* the "rough boar" pattern
-   builds over many turns. The per-steering check catches each turn
-   individually but not the aggregate drift. Should there be a
-   periodic "conversation grounding" check (re-read all steering
-   entries and check for cumulative drift)?
-
-4. *User expertise adaptation:* should Claude push back less for
-   expert users? The current flow doesn't model user expertise
-   level. An expert user making a surprising choice is more likely
-   to have a reason than a novice making the same choice.
+All resolved.
