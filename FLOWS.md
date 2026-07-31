@@ -20,6 +20,7 @@ toward it rather than handling the task ad-hoc in chat.
 | Flow | Command | When to use |
 |------|---------|-------------|
 | **Research** | `research <question>` | Explore approaches, find examples, compare options before deciding |
+| **Dialog** | `dialog <topic>` | Synchronous discussion to reach a specific decision |
 | **Design** | `init <feature>` → `start` | Iterative design with user-driven Q&A loop |
 | **Full** | `init <feature>` → `full` | Design + implement end-to-end, Claude-autonomous |
 | **Implementation** | `implement <feature>` | Implement an already-finalized design |
@@ -29,6 +30,7 @@ toward it rather than handling the task ad-hoc in chat.
 Ask yourself one question: **do I know what to build?**
 
 - **No, I need to explore options** → `research`
+- **I have a specific question to answer first** → `dialog`
 - **Roughly, but need to flesh out the design** → `design`
 - **Yes, and I want Claude to handle design + code** → `full`
 - **Yes, and the design doc already exists** → `implement`
@@ -38,11 +40,21 @@ Ask yourself one question: **do I know what to build?**
 When the user describes a task without choosing a flow, match
 against these patterns:
 
+**→ Dialog** when the user says:
+- "let's discuss...", "I want to talk through...", "here's my
+  problem...", "I'm not sure how to approach..."
+- "what do you think about...", "can we figure out..."
+- The user is working toward a *specific decision* (not open-ended
+  exploration) and has context that Claude can't get from code alone
+- The user starts a back-and-forth that would benefit from tracked
+  decisions and a convergence artifact
+
 **→ Research** when the user says:
 - "how should we...", "what's the best way to...", "compare..."
 - "find examples of...", "research...", "explore..."
 - "what approaches exist for...", "assess..."
-- The task is a question, not a feature request
+- The task is a question requiring external investigation, not a
+  decision the user can make from their own context
 
 **→ Full Flow** when the user says:
 - "build...", "add...", "create..." (a feature, not a question)
@@ -69,6 +81,14 @@ If a "quick" chat task starts growing (multiple files, design
 decisions, back-and-forth), suggest switching to a flow before
 the work becomes hard to track.
 
+**Proactive dialog suggestion.** When a free-form conversation
+involves 3+ exchanges on the same topic with decisions being made
+implicitly, suggest the Dialog Flow: "We're making decisions here
+that might be worth tracking — want to switch to a dialog flow so
+we capture them?" The benefit: convergence gate, decision artifact,
+contradiction checking, and aggregate drift detection that free-form
+chat lacks.
+
 ## Presenting Options
 
 When presenting flow options to the user, use this compact format:
@@ -76,6 +96,7 @@ When presenting flow options to the user, use this compact format:
 ```
 Available flows:
   research <question>  — explore approaches, compare options
+  dialog <topic>       — discuss to reach a specific decision
   full <feature>       — design + implement, Claude-autonomous
   init <feature>       — design only, iterative with user Q&A
   implement <feature>  — code a finalized design
@@ -83,7 +104,7 @@ Available flows:
 Which fits, or describe what you need?
 ```
 
-Keep it to 4 lines + prompt. Do not explain each flow's internal
+Keep it to 5 lines + prompt. Do not explain each flow's internal
 steps — the user picks by intent, not by process.
 
 ## Flow Files

@@ -209,9 +209,23 @@ The dialog file stands alone in `design/`. It can later:
 
 ## Trigger Phrases
 
-- "Let's discuss..."
-- "I want to talk through..."
-- "Can we have a dialog about..."
-- "Let's use the dialog flow for..."
+Explicit triggers:
+- "Let's discuss...", "I want to talk through..."
+- "Can we have a dialog about...", "Let's use the dialog flow for..."
+- "dialog <topic>"
 
-When the user invokes a dialog, apply the Input Sufficiency Gate before proceeding. If sufficient, create the artifact file and begin.
+Implicit triggers (suggest the dialog flow proactively):
+- "Here's my problem...", "I'm not sure how to approach..."
+- "What do you think about...", "Can we figure out..."
+- "I have a question about the architecture/design of..."
+- Any back-and-forth that has gone 3+ exchanges on the same topic
+  with decisions being made implicitly in chat
+
+When an implicit trigger is detected, suggest:
+
+> "This looks like it could benefit from a dialog flow — we'd get
+> tracked decisions and contradiction-checking. Want me to start one?"
+
+When the user invokes a dialog (explicitly or after accepting a
+suggestion), apply the Input Sufficiency Gate before proceeding.
+If sufficient, create the artifact file and begin.
