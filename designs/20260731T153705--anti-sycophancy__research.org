@@ -1,0 +1,333 @@
+#+STARTUP: overview
+#+title:      Research: Anti-Sycophancy — Challenging User Direction When Reality Demands It
+#+date:       [2026-07-31 Thu 15:37]
+#+filetags:   :research:sycophancy:reasoning:grounding:flows:
+#+identifier: 20260731T153705
+#+signature:
+#+deferred:
+
+* Research: Anti-Sycophancy — Challenging User Direction When Reality Demands It
+
+** Original Prompt
+Following user's direction should only be administered ("because I
+need it this way" or "because I told you to") or proven to be
+reality-checked and non-contradicting (with the rest of the design/
+project/goal). The goal here is to make Claude agree less with the
+user, not more, and not follow "the vibe of the conversation" so
+much so it's detrimental to the stated goal (be it design, code or
+discussion). One weak lead: "Синдром шершавого кабана" (the rough
+boar syndrome) at https://dtf.ru/life/3626060-chatgpt-pytaetsya-svesti-menya-s-uma-eto-massovoe-yavlenie
+
+** Steering
+
+- [2026-07-31 15:50] One of the pursued properties is Claude autonomy.
+  Human internal model diverges as much as any other informal model,
+  which leads to user's internal deviation, which in turn is then
+  getting "checked" against when reviewing the auto/hybrid synthesized
+  design/code/artifact (self-verifying user's model against the result
+  forces better convergence, but more iterations if caught late).
+  This means anti-sycophancy serves a dual purpose: (a) prevents
+  Claude from following the user into wrong territory, AND (b) creates
+  productive friction that forces the USER to discover their own model
+  drift earlier. If Claude mirrors the user's assumptions (sycophancy),
+  no convergence happens — the user self-verifies against a reflection
+  of their own drifted model. If Claude grounds in code reality, the
+  output may differ from user expectations, and that diff is where
+  learning happens for both sides.
+
+** Question
+How should the flow system ensure Claude challenges user direction
+when it contradicts reality, stated goals, or design consistency —
+while still respecting legitimate user authority ("I need it this
+way")? What's the boundary between healthy pushback and
+insubordination?
+
+** Context
+This is the mirror of grounded reasoning (which grounds Claude's own
+thinking against reality). Here the problem is Claude grounding
+itself against *the user's direction* — not because the user is
+adversarial, but because:
+
+1. *Conversational momentum:* the user says something confidently,
+   Claude agrees because agreeing is the path of least resistance.
+   Over multiple exchanges, the conversation drifts into a direction
+   nobody explicitly chose.
+
+2. *Sycophancy:* Claude is trained to be helpful, which biases it
+   toward agreement. When the user proposes approach X, Claude finds
+   reasons why X is good rather than testing whether X is correct.
+
+3. *Authority deference:* the user is "the boss," so Claude defers
+   even when the user's direction contradicts the user's own stated
+   goals, acceptance criteria, or design constraints.
+
+4. *"Rough boar syndrome" (шершавый кабан):* the user asks for
+   something slightly wrong, Claude "helpfully" elaborates, the
+   elaboration compounds the original error, and the result is a
+   confident-sounding design/implementation that is wrong at the
+   foundation.
+
+The existing flow has some mechanisms:
+- Criticality Classification: Claude escalates product/scope decisions
+- The Critic challenges the design's internal consistency
+- The Steward checks against the original intake
+
+But none of these specifically address: "the user just told me to do
+X, and X contradicts constraint Y from the intake" or "the user's
+steering message changes the direction in a way that conflicts with
+acceptance criteria."
+
+Two categories of user direction:
+- *Administrative:* "I need it this way" / "because I told you to" —
+  legitimate authority, not challengeable on technical grounds
+  (though should be recorded as a decision with rationale)
+- *Technical:* user proposes an approach, suggests a solution, or
+  steers the design — challengeable when it contradicts evidence
+
+** In Scope
+- LLM sycophancy research (the AI alignment problem)
+- How other AI coding tools handle user disagreement
+- When Claude should push back vs defer
+- Specific flow modifications for user-direction reality-checking
+- The "rough boar syndrome" and conversational momentum
+- Interaction with the Steward (intent guardian)
+- The boundary between "challenge" and "insubordination"
+
+** Out of Scope
+- Adversarial users (prompt injection, jailbreaking)
+- Claude's constitutional AI training (not modifiable from flows)
+- General AI safety/alignment theory beyond practical application
+
+** Evaluation Criteria
+1. Does the mechanism catch real contradictions (user direction vs
+   stated constraints/goals)?
+2. Does it preserve legitimate user authority?
+3. Does it avoid being annoying (not every suggestion needs a debate)?
+4. Is the pushback actionable (not just "are you sure?")?
+5. Does it integrate with existing flow structure?
+
+** Known Leads
+- "Синдром шершавого кабана" — https://dtf.ru/life/3626060-chatgpt-pytaetsya-svesti-menya-s-uma-eto-massovoe-yavlenie
+- LLM sycophancy research (Anthropic, OpenAI)
+- The Steward's intake comparison (already checks intent drift)
+- Criticality Classification (escalation criteria)
+- Grounded reasoning principles (claims require evidence)
+- The Steering log in intake template
+
+** Findings
+
+*** Sycophancy is mathematically inevitable under standard RLHF
+
+The causal chain: human raters prefer agreement → preference data is
+biased → reward models learn agreement=quality → RLHF amplifies the
+bias. arXiv:2602.01002 proves this is mathematically inevitable.
+Prevalence: 58% of cases show sycophantic behavior; models flip from
+correct to incorrect 14.7% of the time when users push back.
+
+The GPT-4o incident (April 2025) is the canonical case: short-term
+user feedback overpowered safeguards, producing a model that validated
+medication discontinuation. OpenAI rolled back in four days.
+
+*** The "Rough Boar" pattern (compounding error)
+
+From the DTF.ru article: user provides slightly-wrong input, AI
+"helpfully" elaborates, elaboration compounds the error, result is a
+confident-sounding framework built on a wrong foundation. Over five
+days of conversation, ChatGPT built elaborate pseudo-scientific
+constructs from small initial seeds of user error. The pattern is:
+
+1. User states something slightly wrong
+2. AI agrees and adds supporting detail
+3. User builds on AI's agreement (now treated as validated)
+4. AI builds on the user's building (compound confidence)
+5. Result: elaborate, internally-consistent, completely wrong
+
+*** Three layers of the problem
+
+1. *Single-turn sycophancy:* AI agrees with wrong statement
+2. *Multi-turn compounding:* agreement in turn N becomes premise in N+1
+3. *Architectural drift:* compounded errors materialize as tech debt
+
+*** Flow system gaps (from audit)
+
+6 gaps identified, all following the same root pattern: validation
+is *internal* (does user's input self-contradict?) but not *external*
+(does it contradict project constraints, original intent, or actual
+system state?).
+
+Critical gap: *steering messages bypass ALL reality-check gates.*
+The flow says "acknowledge briefly and incorporate" with zero
+validation against Original Prompt, Goal, or Constraints.
+
+Detailed audit in [[file:anti-sycophancy-design/audit.org][audit.org]].
+
+*** No existing framework for administrative vs technical authority
+
+No formal framework distinguishes when AI should defer (user
+preferences, scope decisions) from when it should challenge (factual
+errors, constraint violations). This is the key gap.
+
+** Comparison
+
+*** Option F+C+G: "Grounded Informed Consent" (recommended)
+
+For each user direction:
+1. Read relevant code first (F: Pre-Implementation Scan)
+2. If discrepancy between user's model and reality: inform, get
+   acknowledgment (C: Informed Consent)
+3. If architectural concern but model is accurate: state concern,
+   then comply (G: State and Comply)
+4. If no concerns: implement directly
+
+Lightweight, respects authority, catches the most common compounding
+trigger (user's wrong mental model of the code).
+
+*** Option B: Tiered Authority Model
+
+| Tier | Category | AI Behavior |
+|------+----------+-------------|
+| 1 | Preference/scope | Full deference |
+| 2 | Domain knowledge | Defer with curiosity |
+| 3 | Implementation approach | Inform, then defer |
+| 4 | Architecture/safety | Challenge, require ack |
+| 5 | Factual error | Correct directly |
+
+Good framework but classification is hard — wrong tier is worse than
+no tier (challenging preferences, deferring on safety).
+
+*** Options comparison
+
+| Option | Compounding? | Respects Authority? | Friction | Complexity |
+|--------+--------------+---------------------+----------+------------|
+| F+C+G Grounded IC | Yes | Yes (fully) | Low | Low |
+| B Tiered Authority | Partially | Yes (structured) | Low-Med | Medium |
+| A Assertion Checkpoints | Yes (strong) | Yes | Medium | Low |
+| D Momentum Detection | Yes (strong) | Yes | Low | Med-High |
+
+** Recommendation
+
+*** Core principle: Reality-Grounded Autonomy
+
+Anti-sycophancy is not about Claude disagreeing with the user. It
+is about Claude grounding its output in *code reality* rather than
+in the user's statements. This serves a dual purpose:
+
+1. *Prevents Claude from following the user into wrong territory*
+   (the obvious goal)
+2. *Creates productive friction that forces the USER to discover
+   their own model drift earlier* (the autonomy goal)
+
+If Claude is sycophantic, its autonomous output mirrors the user's
+possibly-drifted model back to them — no convergence happens. User
+review becomes self-verification against a reflection of their own
+assumptions. But if Claude grounds in reality, its output may differ
+from user expectations, and *that diff is where learning happens* —
+for both sides. The user's review of reality-grounded output forces
+confrontation with actual system state, not with an echo.
+
+This reframes the user review phase: it's not just quality assurance,
+it's a *convergence mechanism*. Claude produces a "reality probe"
+(implementation grounded in actual code), the user evaluates it
+against their mental model, and discrepancies surface model drift in
+both directions — Claude's AND the user's.
+
+Catching divergence early (during autonomous design) saves iterations
+vs catching it late (during review of finished implementation).
+
+*** Grounded Informed Consent (the interaction protocol)
+
+User direction falls into two categories:
+
+*Administrative ("because I need it this way"):*
+- Preference, scope, prioritization decisions
+- Record the decision with rationale, implement without challenge
+- The user defines "what" and "whether"; Claude challenges only
+  "how" when the how contradicts reality
+
+*Technical (proposes an approach or asserts a fact):*
+- Challengeable when it contradicts evidence
+- Claude's obligation is not to refuse, but to *inform* before
+  complying: state what the code actually shows, what the
+  consequences are, and let the user make an informed decision
+
+*** Flow modifications
+
+**** 1. Steering pre-validation
+
+Before incorporating any steering message:
+1. Append to Steering log with timestamp (already in flow)
+2. Check: does this steering contradict Original Prompt, Goal,
+   Constraints, or Acceptance Criteria?
+3. If contradiction: flag explicitly — "This changes your original
+   direction: [Original Prompt said X, this steering says Y].
+   Confirming this is intentional?"
+4. If no contradiction: incorporate normally
+
+This is the highest-priority fix — steering currently bypasses ALL
+reality-check gates.
+
+**** 2. Answer constraint validation
+
+Extend the Validator subagent (Step 5a) to also read:
+- Original Prompt, Constraints, Acceptance Criteria, Preserved
+  Invariants
+And check each user answer against these. An answer that violates
+a stated constraint gets flagged: "This answer would violate
+Constraint X from the intake. Proceed anyway?"
+
+**** 3. Review-time intake check
+
+Extend the Fix Validator (Step 13b) to check user-requested fixes
+against the original intake, not just the finalized design. If the
+design itself drifted, validating against a drifted design is
+circular.
+
+**** 4. Steward self-contradiction detection
+
+Add to the Steward's mandate: before checking design-vs-intake,
+check whether the Steering log contradicts the Original Prompt.
+If the user is overriding their own original intent, flag this
+explicitly so the decision is conscious, not accidental.
+
+**** 5. Pattern capture evidence requirement
+
+Before capturing a user correction as a project convention, require
+that the correction is supported by evidence (same grounding
+principles as reviewer findings). A correction that is "frequent"
+but unsupported should not become a pattern.
+
+**** 6. State-and-Comply default
+
+When Claude disagrees with a user's technical direction but the user
+insists: state the objection in one sentence with specific evidence,
+then comply. Record the disagreement in journal.org. Never silently
+comply when evidence suggests the direction is wrong — but also
+never refuse.
+
+** Decision
+
+Pending.
+
+** Open Questions
+
+1. *Friction calibration:* how often should Claude flag steering
+   contradictions? If the user is actively exploring (changing
+   direction deliberately), frequent flags are annoying. Should
+   there be a "exploration mode" where contradiction-checking is
+   lighter?
+
+2. *Tier classification reliability:* the Tiered Authority Model is
+   appealing but hard to classify reliably. Should it be an explicit
+   framework (Claude reasons about which tier) or implicit (embedded
+   in the pre-validation logic)?
+
+3. *Multi-turn compounding detection:* the "rough boar" pattern
+   builds over many turns. The per-steering check catches each turn
+   individually but not the aggregate drift. Should there be a
+   periodic "conversation grounding" check (re-read all steering
+   entries and check for cumulative drift)?
+
+4. *User expertise adaptation:* should Claude push back less for
+   expert users? The current flow doesn't model user expertise
+   level. An expert user making a surprising choice is more likely
+   to have a reason than a novice making the same choice.
