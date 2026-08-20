@@ -24,13 +24,13 @@ A synchronous conversation mode for architectural decisions and design clarifica
 ## When to Use
 
 - **Architectural decisions** where trade-offs depend on project philosophy, past experience, or intuition that isn't in the codebase
-- **Design clarification** when a Design Process iteration is stuck in a local maximum (alternatives debated at the wrong level of abstraction)
+- **Design clarification** when a Full Flow design phase is stuck in a local maximum (alternatives debated at the wrong level of abstraction)
 - **Concern exploration** when a specific pain point needs diagnosis before committing to a solution
 
 ### When NOT to Use
 
-- Exhaustive code verification (use the Design Flow's reviewer subagents)
-- Implementation planning (use the Implementation Flow)
+- Exhaustive code verification (use the Full Flow's reviewer subagents)
+- Implementation planning (use the Full Flow's implementation phase)
 - When the topic is vague and has no concrete decision target (push back — see Input Sufficiency below)
 
 ---
@@ -172,7 +172,7 @@ Update the Decisions section to reflect the current state, not the history.
 
 ### Keep turns concise
 
-The dialog's value is in rapid exchange. Claude should not write essays per turn. Lead with the key point, ask one focused question. Save thorough analysis for the formal Design Flow.
+The dialog's value is in rapid exchange. Claude should not write essays per turn. Lead with the key point, ask one focused question. Save thorough analysis for the Full Flow.
 
 ---
 
@@ -181,7 +181,7 @@ The dialog's value is in rapid exchange. Claude should not write essays per turn
 A dialog is "done" when:
 
 1. The Goal question has a corresponding decision in the Decisions section, OR
-2. The user explicitly redirects to the formal Design Flow or Implementation Flow, OR
+2. The user explicitly redirects to the Full Flow (`design` or `full`), OR
 3. The user pauses the dialog (fill in Open section with unresolved items)
 
 **End-of-dialog aggregate check.** Before declaring the dialog done,
@@ -196,19 +196,19 @@ If aggregate drift is detected, flag it:
 
 ---
 
-## Integration with the Design Flow
+## Integration with the Full Flow
 
-### Dialog during a Design Process
+### Dialog during a Full Flow
 
-When a dialog happens mid-iteration (e.g., during the `loop` or `review` step), the decisions feed **directly into the design document** — not into the answers file. The dialog replaces a loop iteration; it doesn't produce input for one.
+When a dialog happens mid-flow (e.g., during `loop` or before `finalize`), the decisions feed **directly into the design document** — not into the answers file. The dialog replaces a loop iteration; it doesn't produce input for one.
 
-After the dialog ends, resume the Design Process from wherever it was (typically `loop` to process any remaining open items, or `review`/`finalize` if the dialog resolved everything).
+After the dialog ends, resume the Full Flow from wherever it was (typically `loop` to process any remaining open items, or `finalize` if the dialog resolved everything).
 
 ### Standalone dialog
 
-The dialog file stands alone in `design/`. It can later:
-- Seed a new Design Process (`start <feature>` using the decisions as input)
-- Be referenced by an Implementation Flow
+The dialog file stands alone in `designs/`. It can later:
+- Seed a new Full Flow (`init <feature>` → `full`, using the decisions as input)
+- Be referenced by a subsequent `implement` phase
 - Be discarded if the decision is superseded
 
 ---

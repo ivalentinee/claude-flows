@@ -504,9 +504,35 @@ Two sequential subagents produce `impl-plan.org` in the working
 directory:
 
 **Step 8a — Module Relationship subagent.** Read finalized design +
-existing codebase. Write section 1:
-- New modules, modified modules, dependencies, interfaces &
-  contracts, supervision tree placement, data flow
+existing codebase. Write section 1 of `impl-plan.org`:
+
+```org
+* Module Relationships
+
+** New Modules
+(Each new module with its single responsibility.)
+
+** Modified Modules
+(Existing modules being touched and what changes in each.)
+
+** Dependencies
+(How modules relate: new→new, new→existing. Who calls whom,
+who subscribes to what, who supervises whom.)
+
+** Interfaces & Contracts
+(Behaviours, protocols, struct shapes, and formal specs — JSON
+Schema, OpenAPI, AsyncAPI — to define before implementation.)
+
+** Supervision Tree Placement
+(Where new processes sit in the OTP supervision tree.)
+
+** Data Flow
+(Which process sends what to whom, through which mechanism —
+direct call, PubSub, message queue, ETS.)
+```
+
+The Module Relationship subagent does NOT sequence work — it
+describes the topology.
 
 **Step 8b — Plan subagent.** Read module relationships + finalized
   design. Write section 2:
@@ -763,15 +789,18 @@ convention.
 |---------|--------|
 | `init <name-or-description>` | Create `designs/<feature>.org` with the intake template and `designs/<feature>-design/` directory. Derives kebab-case filename (strip filler words, noun phrases, max 3-4 words). Does not start the flow — the user fills in the intake fields first. |
 | `full [<feature-name>]` | Start from Step 1. Reads the intake doc, then runs through all phases automatically, pausing only for Critical escalations (Step 5) and user review (Step 12). If `<feature-name>` is omitted, infer from the most recently initialized or active feature. |
+| `design [<feature-name>]` | Run Phase 1 only (Steps 1–7). Stops after design finalization. Use when the user wants to design without implementing. |
+| `implement [<feature-name>]` | Run Phase 2 only (Steps 8–15). Requires a finalized design doc. Use when design was done separately or already exists. |
 | `loop` | In design phase: process `answers.org` (Step 5a). In implementation phase: process `review-notes.org` (Step 13). **Cumulative drift check:** re-read ALL Steering entries, check aggregate drift against Original Prompt. |
 | `finalize` | In design phase: run Step 7. In implementation phase: run Step 14. **Cumulative drift check** before finalizing. |
 | `commit` | Run Step 15. |
 | `resume` | Detect current state from existing files + git status, report where we are, and continue from the appropriate step. |
 | `retro` | Post-completion retrospective (3-5 bullets, no files created). |
 
-The flow **does not expose** `review` as a standalone command — the
-design review (Step 6) and implementation self-review (Step 10)
-always run as part of the flow.
+`design` and `implement` run the SAME steps as `full` — they are
+entry points into specific phases, not separate definitions. All
+quality gates, Steward checks, evidence requirements, and mandatory
+reviews apply identically regardless of entry point.
 
 ---
 
@@ -907,6 +936,17 @@ These commands from the original flows remain available independently:
   subsystem boundaries. Produces a ranked report.
 - **`abstraction-check <target>`** — run Abstraction Minimalist on
   any module or function. Informational, no edits.
+
+---
+
+## Concurrent Features
+
+Multiple features can be in-flight simultaneously — each has its
+own file set. To avoid confusion:
+- Always include `<feature-name>` when switching between features
+  in the same session
+- Never modify one feature's files while processing another
+  feature's loop
 
 ---
 
