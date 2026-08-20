@@ -1,0 +1,278 @@
+#+STARTUP: overview
+#+title:      Research: Grepable Code — Discoverable-by-Tools Code Quality
+#+date:       [2026-08-20 Wed 13:56]
+#+filetags:   :research:code-quality:grepability:naming:discoverability:
+#+identifier: 20260820T135610
+#+signature:
+#+deferred:
+
+* Research: Grepable Code — Discoverable-by-Tools Code Quality
+
+** Original Prompt
+The code property I try to go for is the ability to explore the code
+(what, where and how), or finding the exact answer to some question
+(like "what is this value's path through the code?"). This should be
+possible by utilizing two tools: (1) =find= to go through filenames
+(these should carry a lot of meaning) and (2) =grep -A 10 -B 10=
+(grep/ag + half screen of code). The ultimate quality such tool
+limitation brings is "there's no need to read through the code to
+discover required facts, you only need to peek at code samples
+relevant to the question at their literal value: names, calls,
+language-specific syntax".
+
+** Steering
+
+** Question
+How should code be structured so that its behavior, data flow, and
+architecture are discoverable using only =find= (filenames) and
+=grep -B10 -A10= (local code context) — without needing to read and
+internalize entire modules or trace multi-file call chains?
+
+** Context
+An experiment tracing =scalingFactor= through the =/app= codebase
+demonstrated the problem: after 6 grep iterations across Elixir and
+TypeScript code, the full value path was still incomplete. The code
+is structured so that understanding the data flow requires
+internalizing the entire codebase — grep produces dead ends because:
+
+1. Values are renamed at boundaries (=scalingFactor= in JS →
+   =extra["scalingFactor"]= in Elixir → =scaling_factor= local var)
+2. Data passes through generic containers (=extra=, =config=, =data=)
+   that carry many unrelated values
+3. Function names don't reveal what data flows through them
+   (=merge_runtime_scaling_factor= is ok, but =setup= is not)
+4. File structure doesn't map to data flow (operations setup is in
+   =stage/running/operations/setup.ex= — generic name)
+
+The grepable code approach has a reference article:
+https://ivalentinee.github.io/en/programming/2020/08/22/aliases-in-elixir.html
+
+** In Scope
+- What makes code grep-discoverable (naming, structure, conventions)
+- Filename conventions that carry meaning
+- Anti-patterns that break grepability (generic names, invisible
+  data flow, boundary renames)
+- Best practices from online sources
+- Amendments to CODE-QUALITY.md
+- Whether a reviewer subagent should enforce grepability
+- Language-specific patterns (Elixir, TypeScript)
+
+** Out of Scope
+- IDE-specific navigation (LSP, go-to-definition) — the premise is
+  that =find= and =grep= must be sufficient
+- Documentation generation
+- Changes to the =/app= codebase itself
+
+** Evaluation Criteria
+1. Can the value path be traced in <=3 grep hops?
+2. Can file purpose be determined from filename alone?
+3. Can function purpose be determined from name + 10 lines context?
+4. Are naming conventions consistent across language boundaries?
+5. Are the rules enforceable by a reviewer?
+
+** Known Leads
+- https://ivalentinee.github.io/en/programming/2020/08/22/aliases-in-elixir.html
+- The =scalingFactor= experiment (6+ hops, incomplete)
+- Elixir alias conventions (the article's topic)
+- "Screaming architecture" (Uncle Bob — filenames reveal intent)
+- Greppable code concept (various blog posts)
+- The existing CODE-QUALITY.md naming rules
+
+** Findings
+
+*** The core concept: "grep handles"
+
+The fundamental unit of grepable code is the *grep handle* — a
+unique, stable string that connects a concept's definition to all
+its usage sites. When you grep for a grep handle, you find every
+place that concept appears. When grep handles break (generic names,
+renames at boundaries, dynamically constructed identifiers), the
+code becomes opaque to tools.
+
+Detailed findings in [[file:grepable-code-design/findings.org][findings.org]].
+
+*** Experiment results
+
+Three controlled experiments on =/app= using only =find= + =grep=:
+
+| Experiment | Hops | Dead ends | Root cause |
+|------------|------|-----------|------------|
+| =maxHeight= trace | 10 | 2 | 5 name transformations through the system |
+| =scalingFactor= in Elixir | 7 | 0 | Opaque =extra: :map= with no typed fields |
+| Find result processing | 7 | 3 | Generic filenames (=setup.ex=, =entries.ts=) |
+
+*Most striking finding:* =maxHeight= becomes =MaximumHeight= →
+=maxHeight= → =scalingFactor= (computed, completely different name) →
+=scaling_factor= → ="scaling factor"=. Grepping for =maxHeight= will
+*never* find its downstream consumer =config.scalingFactor=.
+
+Detailed experiment log in [[file:grepable-code-design/experiment.org][experiment.org]].
+
+*** Six anti-patterns that break grepability
+
+1. *Value renames at boundaries* — =maxHeight= becomes =scalingFactor=
+   with no breadcrumb connecting them
+2. *Opaque map containers* — =extra: :map= and =run_options: :map=
+   hide their contents from grep
+3. *Cross-language boundaries without shared schemas* — TS and Elixir
+   communicate via untyped JSON maps
+4. *Generic filenames* — =setup.ex=, =entries.ts=, =runtimeDetails.ts=
+   give no hint of actual purpose
+5. *String-keyed access* — =get_in(extra, ["scalingFactor"])= is
+   invisible to refactoring tools
+6. *Missing intermediate variables* — data spread inline breaks the
+   grep chain
+
+*** Existing flow coverage: zero explicit grepability
+
+From the audit: 0 of 9 reviewers have grepability in their mandate.
+Existing naming rules partially help (no abbreviations, domain terms)
+but have critical gaps: generic container field names allowed, no
+cross-boundary consistency rule, function names reveal action but not
+subject, no filename meaningfulness rule.
+
+Detailed audit in [[file:grepable-code-design/audit.org][audit.org]].
+
+*** The Elixir aliases article
+
+The referenced article (ivalentinee.github.io) demonstrates a
+concrete case: Elixir's compact alias syntax (=alias A.B.{C, D}=)
+breaks grep because the full module path =A.B.C= never appears as
+a contiguous string. The full form (=alias A.B.C=) preserves the
+grep handle. The article explicitly argues for prioritizing
+greppability.
+
+** Comparison
+
+*** Option A: Naming conventions only (low effort)
+
+Ban generic container names, require consistent root names across
+boundaries, unique function names (include domain noun), no
+dynamically constructed names.
+
+Pros: zero structural change, immediately applicable.
+Cons: doesn't address file structure, requires human discipline.
+
+*** Option B: Naming + file structure (medium effort)
+
+Option A plus: domain-term directories, descriptive filenames, one
+concept per file, no =index.ts=/=utils.ts= grab-bags.
+
+Pros: =find= becomes useful for discovery.
+Cons: may conflict with framework conventions.
+
+*** Option C: Full boundary discipline (high effort)
+
+Option B plus: explicit translation points at boundaries, typed
+boundaries (no opaque maps), log vocabulary matching code vocabulary,
+3-hop trace audits.
+
+Pros: addresses all six anti-patterns.
+Cons: significant effort, may require codebase-wide refactoring.
+
+** Recommendation
+
+*** Option B with the 3-hop trace test from Option C
+
+Naming conventions + file structure rules + the 3-hop trace test as
+a reviewer checklist item. This addresses the highest-impact anti-
+patterns (generic names, file discoverability) without requiring the
+full boundary discipline of Option C.
+
+*** CODE-QUALITY.md additions: "Grepable Code" section
+
+#+begin_example
+## Grepable Code
+
+Code should be discoverable using =find= (filenames) and =grep -B10
+-A10= (local context) without reading entire modules. The test: can
+you trace any value's path through the codebase in <=3 grep hops?
+
+**Every concept gets a grep handle.**
+- A grep handle is a unique, stable string connecting a concept's
+  definition to all usage sites. When you grep for it, you find
+  every place that concept appears.
+- Generic names (=data=, =extra=, =config=, =info=, =payload=) are
+  NOT grep handles — they match everything and identify nothing.
+  Use domain-qualified names: =templateConfig=, =renderPayload=,
+  =scalingFactor=.
+- This applies to ALL scopes: local variables, function parameters,
+  struct fields, map keys, and config keys. Not just local variables.
+
+**Consistent names across boundaries.**
+- When a value crosses a boundary (API → backend → database), the
+  root words stay identical. Only case convention may change:
+  =scalingFactor= (JS) → =scaling_factor= (Elixir) → =scaling_factor=
+  (DB column).
+- NEVER rename a concept at a boundary. If =maxHeight= enters the
+  system, it stays =maxHeight=/=max_height= everywhere — not
+  =scalingFactor= downstream. If a computed value is genuinely
+  different, it gets its own name AND a comment linking it to its
+  source: =# derived from max_height via compute_scaling/1=.
+
+**Function names include subject, not just action.**
+- =compile= → =compile_template=. =resolve= → =resolve_graph_node=.
+  =setup= → =setup_operation_environment=.
+- The grep test: grepping for the function name should find ONLY
+  calls related to that specific domain concept.
+
+**Filenames reveal purpose.**
+- =setup.ex= → =operation_environment_setup.ex=.
+  =entries.ts= → =template_run_entries.ts=.
+  =utils.ts= → split into domain-specific files.
+- The =find= test: scanning filenames should tell you where to look
+  for a specific concept without opening files.
+
+**No opaque map containers.**
+- =extra: :map= is a grepability black hole. Use typed structs or
+  at minimum document the expected keys in a =@type= spec.
+- String-keyed map access (=get_in(extra, ["scalingFactor"])=) is
+  invisible to refactoring tools. Prefer atom keys and struct
+  access where possible.
+
+**Elixir-specific: use full alias form.**
+- =alias A.B.C= (grepable) not =alias A.B.{C, D}= (compact but
+  grep-breaking). The full module path must appear as a contiguous
+  string.
+#+end_example
+
+*** Reviewer integration
+
+Extend the *Code Clarity Reviewer (#9)* checklist with two items:
+
+#+begin_example
+*Grepability:*
+11. Can you trace any key value's path through the changed code
+    in <=3 grep hops? (Consistent names, no opaque containers,
+    meaningful function/file names.)
+12. Do new function names include the domain subject? (Not just
+    the action — =setup_operation= not =setup=.)
+#+end_example
+
+No new reviewer needed — the Code Clarity Reviewer already owns
+"naming reveals intent" and this is a specific, measurable test of
+that property.
+
+** Decision
+
+Pending.
+
+** Open Questions
+
+1. *Strictness of the container ban:* should =config= be banned
+   entirely, or only when it's an untyped map with >3 keys? Some
+   uses (=Application.get_env(:app, :config)=) are conventional.
+
+2. *Cross-language shared schemas:* the experiment found TS and
+   Elixir communicate via untyped JSON. Should the grepability
+   rules recommend shared schema definitions (e.g., JSON Schema
+   referenced by both sides)?
+
+3. *Retrofit vs new-code-only:* should existing code be refactored
+   to match, or do the rules apply only to new code? The experiment
+   shows the =/app= codebase has deep grepability problems — fixing
+   them is a significant effort.
+
+4. *The =3-hop= threshold:* is 3 the right number? The experiments
+   showed 7-10 hops. Should 3 be aspirational (for new code) with
+   a higher tolerance for legacy?

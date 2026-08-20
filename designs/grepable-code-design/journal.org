@@ -1,0 +1,144 @@
+* Grepable Code Research Journal
+
+** 2026-08-20 Research Session
+
+*** Sources Consulted
+
+**** Successfully Retrieved
+- Valentine Ionov, "Aliases in Elixir" (ivalentinee.github.io) -- Elixir alias grepability
+- Uncle Bob, "Screaming Architecture" (blog.cleancoder.com, 2011) -- Architecture revealing intent
+- Uncle Bob, "The Clean Architecture" (blog.cleancoder.com, 2012) -- Structural organization
+- Martin Fowler, "Ubiquitous Language" (martinfowler.com) -- Consistent terminology from DDD
+- Martin Fowler, "Two Hard Things" -- Naming as fundamental difficulty
+- matklad, "ARCHITECTURE.md" (2021) -- Making codebases navigable
+- matklad, "Almost Rules" (2022) -- Consistent syntactic rules aiding navigation
+- Sandi Metz, "The Wrong Abstraction" -- How wrong abstractions obscure intent
+- htmx.org, "Locality of Behaviour" -- Behavior discoverable at point of use
+- Google C++ Style Guide, Naming section -- Searchability and grep awareness
+- Elixir naming conventions (hexdocs.pm) -- Semantic naming for discoverability
+- Carl Alexander, "The Importance of Naming in Programming" -- Ubiquitous language in practice
+- Bob Nystrom, "Long Names Are Long" -- Name length vs clarity tradeoffs
+- Google Testing Blog, "Reduce Nesting, Reduce Complexity" -- Guard clauses for readability
+
+**** Attempted but unavailable (404/403/paywall)
+- Hillel Wayne, "Greppability is an Underrated Code Quality" (buttondown) -- 404
+- Various DuckDuckGo and Google searches -- blocked by consent/JS rendering
+- stitcher.io greppable code article -- 404
+- programmingisterrible.com repeat yourself article -- 403
+- Reddit discussion on greppability -- blocked
+- dev.to greppable code article -- 404
+- swyx.io greppable article -- 404
+
+*** Key Insights Gathered
+
+**** From Elixir Aliases Article (Ionov)
+The article demonstrates a concrete example of how language syntax choices
+affect grepability. In Elixir, you can write aliases two ways:
+
+#+begin_src elixir
+# Greppable: full alias
+alias SomeProject.Family.Son1
+alias SomeProject.Family.Son2
+
+# NOT greppable: compact alias
+alias SomeProject.Family.{Son1, Son2}
+#+end_src
+
+The compact form breaks ~grep SomeProject.Family.Son1~ because the full
+module path never appears as a contiguous string. The author explicitly
+recommends the full form to preserve "greppability" and draws a parallel
+to problems in Ruby codebases where this issue compounds.
+
+Core insight: the full module path is a "grep handle" -- a unique string
+that connects a module's definition to all its usage sites.
+
+**** From Screaming Architecture (Uncle Bob)
+Top-level directory structure should reveal what the system /does/, not
+what frameworks it uses. Looking at the project should tell you "this is
+a health care system" not "this is a Rails app."
+
+Applied to grepability: filenames and directory names are the first
+"grep handles" a developer encounters. If they contain domain terms
+(e.g., ~templateCompiler.ts~, ~outputBuilder/~) rather than generic
+framework terms (e.g., ~controller.ts~, ~service.ts~), a developer
+can ~find . -name '*template*'~ to locate template-related code.
+
+**** From ARCHITECTURE.md (matklad)
+Finding where to make changes takes 10x longer than making them for
+unfamiliar contributors. The solution: explicitly name important files,
+modules, and types, and maintain a high-level map.
+
+Applied to grepability: if important entities have unique, explicit
+names, a developer can grep for them. If they are generic (~data~,
+~config~, ~handler~), grepping produces noise.
+
+**** From Ubiquitous Language (Fowler)
+DDD's ubiquitous language demands that the same term means the same
+thing everywhere -- in conversations, documentation, and code. When a
+value is called ~templateId~ in one place and ~graphId~ in another, the
+language is no longer ubiquitous, and grep cannot trace the value.
+
+Applied to grepability: maintaining a single name for a concept across
+all boundaries (API, backend, database) creates a continuous "grep
+trail."
+
+**** From The Wrong Abstraction (Metz)
+Over-abstracted code hides intent behind layers of conditionals.
+Developers cannot determine which code paths apply to their use case
+without reading the entire abstraction.
+
+Applied to grepability: wrong abstractions break the "3-hop trace" by
+forcing developers to read through conditional logic instead of
+grepping for a specific value or function name.
+
+**** From Locality of Behaviour (htmx)
+"The behaviour of a unit of code should be as obvious as possible by
+looking only at that unit of code." When behavior is co-located with
+its trigger, you don't need to search multiple files.
+
+Applied to grepability: locality reduces the /number/ of grep hops
+needed. If behavior is scattered (jQuery-style ~$('#id').click()~ in a
+separate file), you need extra hops. If co-located (htmx-style inline
+attributes), zero hops.
+
+**** From Google C++ Style Guide
+Google explicitly acknowledges grep in their naming guidance: regarding
+operator overloading, they warn that "finding the call sites for
+overloaded operators may require a search tool that's aware of C++
+syntax, rather than, e.g., grep." This shows that even at Google's
+scale, grep-based discoverability is a design consideration.
+
+**** From Elixir Naming Conventions
+Elixir embeds semantic information in naming patterns: trailing ~!~ means
+"raises on error," trailing ~?~ means "returns boolean," ~is_~ prefix
+means "usable in guards." These conventions make names self-documenting
+AND greppable -- you can grep for ~!~ functions to find all functions
+that raise.
+
+**** From Clean Architecture (Uncle Bob)
+Source code dependencies must point inward only. This structural
+constraint, when reflected in directory layout, makes it possible to
+grep for all dependencies of an inner module without finding spurious
+matches from outer layers.
+
+*** Synthesis: The Grepable Code Concept
+
+Based on all sources, "grepable code" is code structured so that a
+developer can discover its behavior, data flow, and architecture using
+only ~find~ (filenames) and ~grep -B10 -A10~ (local context), without
+needing to read entire modules or trace multi-file call chains.
+
+The concept rests on several pillars:
+
+1. *Unique naming* -- Every important entity has a name that is unique
+   enough to grep for without noise
+2. *Consistent naming* -- The same concept uses the same name everywhere
+   (no renaming at boundaries)
+3. *Explicit naming* -- Names reveal what data flows through them (no
+   generic ~data~, ~config~, ~extra~)
+4. *Locality* -- Related behavior is co-located so grep results show
+   complete context in ~-B10 -A10~ windows
+5. *Structural legibility* -- File and directory names encode domain
+   terms, making ~find~ effective
+6. *Linear traceability* -- Data can be traced through the system in a
+   small number of grep hops

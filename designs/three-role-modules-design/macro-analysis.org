@@ -1,0 +1,45 @@
+#+STARTUP: overview
+#+title:      Macro Code Three-Role Analysis
+#+date:       [2026-08-20 Wed 14:10]
+#+filetags:   :working:findings:
+
+* Key Findings
+
+** Role Classification (80+ files)
+
+- Action orchestrators: ~12 files (index.ts entry points)
+- Data building: ~25 files (build*, get*, create*, collect*)
+- Communication/wiring: ~15 files (connect*, reconnect*, put*, clone*)
+- Hybrid/mixed: ~5 files (pattern breaks)
+- Utility: ~8 files (cross-cutting)
+
+** "I Don't Care" Principle: 85% compliance
+
+- Builders know NOTHING about orchestration flow or wiring
+- Connectors know NOTHING about business logic or data construction
+- Orchestrators delegate cleanly to builders then connectors
+
+** Naming Conventions That Emerge
+
+| Prefix | Role | Predictive accuracy |
+|--------|------|---------------------|
+| =build*= | Data building | 100% |
+| =get*= | Data extraction | 100% |
+| =create*= | Data factory | 100% |
+| =connect*= | Wiring | 100% |
+| =reconnect*= | Rewiring | 100% |
+| =put*= | Insert into graph | ~90% |
+| =index.ts= | Action/orchestrator | ~95% |
+
+** Pattern Breaks
+
+- =runExactlyOnce/index.ts= — orchestration + wiring mixed
+- =outputImage.ts= variants — orchestration + data building mixed
+- =combineSegments.ts= — builds AND wires simultaneously
+- =expandSwitch.ts= — creates structure while also wiring inputs
+
+** Grepability: Excellent
+
+=find -name "build*.ts"= finds 20+ builder files.
+=find -name "connect*.ts"= finds 10+ connector files.
+File names are 90% predictive of content role.

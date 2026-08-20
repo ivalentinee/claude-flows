@@ -1,0 +1,98 @@
+#+STARTUP: overview
+#+title:      Research: Three Module Roles — Communication, Action, Data Building
+#+date:       [2026-08-20 Wed 14:01]
+#+filetags:   :research:architecture:modules:code-quality:
+#+identifier: 20260820T140141
+#+signature:
+#+deferred:
+
+* Research: Three Module Roles — Communication, Action, Data Building
+
+** Original Prompt
+Fitting codebase into 3 module/file roles: "module communication",
+"action" and "data building".
+
+** Steering
+- [2026-08-20 18:10] The major factor here is the "I don't care" principle: one role should not be aware about another's behavior, but be able to successfully use it, yet all the roles should work towards a single "module responsibility". Another example: every module (except, maybe, for the "communication" one in some cases) should only have one direction: it either acts or responds (something akin CQRS). Another reason - decoupling - almost every module does 3 things: handle communication with other modules, acts on it, and parses/builds data - the three are a "non-boundary" split points, which allow for smaller files and better naming.
+
+- [2026-08-20 18:12] Also, sometimes even within a single module there might be multiple "action" modules: not because of module being overburdened with responsibility, but because it has to act in "multiple directions", which - again - are some natural points for splitting, even if within a single "module responsibility".
+
+- [2026-08-20 18:15] And one more: "data building" (or data processing - in case any parsing/normalization should be applied) is a separate "role" for one particular reason - most of the time data building takes a lot of visual space, and cluttering "communication" and "action" code with it makes the code worse at communicating it's behavior.
+
+- [2026-08-20 18:20] While it looks like MVVM/MVC application (in a way, it is), these are not applicable directly, since these cater to an external communication handling, not internal.
+
+- [2026-08-20 18:25] I believe it is worth researching Joe Armstrong and Alan Kay, since these CS experts were/are striving towards better (and simpler) module communication and "isolation". Basically, elixir/erlang communication should become project's strength, not "spaghettifying" weakness.
+
+- [2026-08-20 18:30] Clarification on "communication": by this I mean "accepting requests from other modules and responding" — like class public functions, Erlang/Elixir GenServer handlers (handle_call, handle_cast, handle_info), API controller actions, and similar. It's the module's interface/boundary — the part that receives input from the outside world (other modules) and dispatches to action modules. NOT orchestration of other modules (that's closer to "action" or a higher-level concern).
+
+** Question
+Can every module/file in a codebase be classified into one of three
+roles — (1) module communication (orchestration, routing, delegation),
+(2) action (business logic, transformations, side effects), and
+(3) data building (constructing, validating, shaping data structures)
+— and does enforcing this classification improve code quality,
+grepability, and maintainability?
+
+** Context
+This relates to the Abstraction Minimalist's tier system (which
+already distinguishes orchestration from detail-level work) and to
+the grepable code research (where file/module role clarity aids
+discoverability). The hypothesis: if every module has a clear,
+singular role from this taxonomy, then:
+
+- =find= on filenames reveals the module's role
+- =grep= within a module finds only one kind of work
+- The Abstraction Minimalist's tier checks become simpler (a module
+  at the wrong role is a structural smell)
+- Data flow becomes more traceable (communication modules show the
+  path, action modules show the transformations, data modules show
+  the shapes)
+
+*** On the role purpose
+The major factor here is the "I don't care" principle: one role should not be aware about another's behavior, but be able to successfully use it.
+
+An example:
+
+** In Scope
+- Definition and boundaries of each role
+- How this maps to existing patterns (hexagonal architecture, clean
+  architecture, functional core/imperative shell, ports & adapters)
+- Whether existing code (e.g., the =/app= codebase) naturally fits
+  or resists this classification
+- Filename and module naming conventions per role
+- How this interacts with the Abstraction Minimalist, Code Clarity
+  Reviewer, and grepability rules
+- Language-specific considerations (Elixir modules, TypeScript files)
+
+** Out of Scope
+- Refactoring existing codebases to fit (that's implementation)
+- Formal type-system enforcement
+- Microservice-level architecture (this is about module/file level)
+
+** Evaluation Criteria
+1. Clarity — can every module be unambiguously classified?
+2. Completeness — does the taxonomy cover all real-world modules?
+3. Grepability — does the classification improve =find= + =grep=
+   discoverability?
+4. Practicality — can it be adopted incrementally?
+5. Existing pattern alignment — does it conflict with or extend
+   established architecture patterns?
+
+** Known Leads
+- Functional core / imperative shell (Gary Bernhardt)
+- Clean architecture (Uncle Bob) — entities, use cases, adapters
+- Hexagonal architecture — ports and adapters
+- The Abstraction Minimalist's tier labels: "orchestration", "data
+  transformation", "I/O", "formatting", "tracing"
+- Elixir conventions: context modules, schema modules, live views
+- The grepable code research (=20260820T135610=)
+
+** Findings
+
+** Comparison
+
+** Recommendation
+
+** Decision
+
+** Open Questions

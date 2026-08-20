@@ -1,0 +1,176 @@
+* Grepable Code: Options for Adoption
+
+This document presents options for adopting grepable code principles
+in a codebase, organized from lightweight to comprehensive.
+
+** Option A: Naming Convention Guidelines Only
+
+*** Description
+Adopt a set of naming rules that maximize grepability, documented in
+a project style guide or CLAUDE.md. No structural changes to the
+codebase.
+
+*** Rules
+1. *No generic container names* in function signatures: ban ~data~,
+   ~info~, ~extra~, ~payload~, ~stuff~ as parameter or variable names
+   for multi-field objects. Require domain-qualified names
+   (~templateData~, ~renderPayload~).
+2. *Consistent root names across boundaries*: when a value crosses a
+   boundary (API -> backend -> DB), the root words stay the same.
+   Only case convention may change (~templateId~ -> ~template_id~).
+3. *No abbreviations* except universally understood ones (~id~, ~url~,
+   ~http~, ~db~). Spell out ~template~ not ~tpl~, ~config~ not ~cfg~.
+4. *Unique function names*: function names should include the domain
+   noun they operate on (~compileTemplate~, not ~compile~;
+   ~resolveGraphNode~, not ~resolve~).
+5. *No dynamically constructed function/method names*: prefer explicit
+   dispatch (switch/map) over string concatenation to build names.
+6. *Spell out event/message type constants*: use unique string
+   constants (~TEMPLATE_RENDER_REQUESTED~) not bare strings (~render~).
+
+*** Effort
+Low. Can be adopted incrementally. New code follows the rules;
+existing code is updated opportunistically.
+
+*** Tradeoffs
+- (+) Zero structural change
+- (+) Immediately applicable to new code
+- (+) Enforceable via code review and linting (custom ESLint rules
+  could flag ~: any~ parameters named ~data~, etc.)
+- (-) Does not address file structure or module organization
+- (-) Existing code remains ungrepable until touched
+- (-) Requires human discipline without automated enforcement
+
+** Option B: Naming Conventions + File Structure Rules
+
+*** Description
+Option A plus rules for filenames and directory organization.
+
+*** Additional Rules (on top of Option A)
+7. *Domain-term directories*: top-level directories use domain terms
+   (~compiler/~, ~templateRunner/~, ~outputBuilder/~) not generic
+   layer terms (~lib/~, ~core/~, ~utils/~).
+8. *Descriptive filenames*: avoid ~index.ts~, ~utils.ts~, ~helpers.ts~
+   as the primary file in a directory. If ~index.ts~ is needed for
+   module resolution, the directory name must be descriptive.
+9. *One concept per file*: a file should contain code for one domain
+   concept. If you need to grep for two unrelated concepts and both
+   land in the same file, split it.
+10. *Filename mirrors export*: the primary export of a file should be
+    derivable from the filename (~templateCompiler.ts~ exports
+    ~compileTemplate~ or ~TemplateCompiler~).
+
+*** Effort
+Medium. Naming rules are incremental. File restructuring may require
+coordinated refactoring but can be done directory-by-directory.
+
+*** Tradeoffs
+- (+) ~find~ becomes useful (not just ~grep~)
+- (+) New developers can orient via ~ls~ and ~find~
+- (+) Screaming architecture: project structure reveals purpose
+- (-) File renames break git blame history (mitigated by
+  ~git log --follow~)
+- (-) Import paths change, requiring coordinated updates
+- (-) May conflict with framework conventions (e.g., Next.js page
+  routing expects specific filenames)
+
+** Option C: Full Grepability Framework (Naming + Structure + Boundary Discipline)
+
+*** Description
+Options A + B plus explicit discipline at module boundaries to ensure
+the "3-hop trace test" passes for all important data flows.
+
+*** Additional Rules (on top of Options A + B)
+11. *Translation points are explicit*: where an external system uses
+    different terminology, create a single translation function where
+    both names appear side-by-side, with a comment mapping them.
+12. *No implicit data passing*: all data that a function needs must
+    appear in its signature. Ban reading from module-level mutable
+    state or global singletons within business logic.
+13. *Typed boundaries*: at every module boundary, define a TypeScript
+    interface or Elixir typespec that names every field explicitly.
+    No ~any~, no ~Map.t()~ without key types.
+14. *Log messages use code vocabulary*: log messages must use the same
+    domain terms that the code uses. If code calls it ~templateId~,
+    logs must too.
+15. *The 3-hop audit*: for each major data flow, document the grep
+    trail in ARCHITECTURE.md. Periodically verify that the trail
+    still works.
+
+*** Effort
+High. Requires ongoing discipline and periodic audits. Best adopted
+as a team commitment rather than a rule imposed on individuals.
+
+*** Tradeoffs
+- (+) Maximum discoverability -- any value traceable in <=3 hops
+- (+) AI agents (Claude Code) can navigate the codebase effectively
+- (+) New team members onboard faster
+- (+) Debugging is faster (trace from log message to code via grep)
+- (-) Higher upfront cost for boundary discipline
+- (-) May feel bureaucratic without buy-in
+- (-) 3-hop audit requires maintenance
+- (-) Some frameworks/libraries fight against this (e.g., ORMs that
+  rename fields, serializers that transform keys)
+
+** Option D: Automated Enforcement
+
+*** Description
+Any of the above options, plus automated tooling to detect and prevent
+grepability regressions.
+
+*** Possible Automated Checks
+- *ESLint rule*: flag parameters of type ~any~ or ~object~ with
+  generic names (~data~, ~info~, ~extra~, ~payload~, ~context~)
+- *ESLint rule*: flag function names that are bare verbs without a
+  domain noun (~process~, ~handle~, ~transform~, ~execute~, ~run~)
+- *Filename linter*: flag files named ~index.ts~, ~utils.ts~,
+  ~helpers.ts~, ~types.ts~ unless in a descriptively-named directory
+- *Boundary consistency check*: a script that extracts field names
+  from API schemas, TypeScript interfaces, and database migrations,
+  then reports mismatches in root words
+- *Grep trail test*: a CI script that runs a predefined set of grep
+  queries and verifies each returns results (regression test for
+  grepability)
+
+*** Effort
+Very high initial investment. Custom tooling must be built and
+maintained.
+
+*** Tradeoffs
+- (+) Automated enforcement removes reliance on human discipline
+- (+) CI catches regressions before merge
+- (+) Makes the principles concrete and measurable
+- (-) Custom ESLint rules require development and maintenance
+- (-) False positives may frustrate developers
+- (-) Boundary consistency check is complex to implement
+- (-) Risk of over-engineering the tooling itself
+
+** Recommendation
+
+Start with *Option A* (naming conventions) immediately. It costs
+nothing and improves every new line of code. Adopt *Option B* (file
+structure) when refactoring opportunities arise. Aspire to *Option C*
+(boundary discipline) for critical data flows first (e.g., the
+template compilation pipeline, the run lifecycle). Consider *Option D*
+(automation) only after the team has internalized the principles and
+wants to prevent regression.
+
+The key insight is that grepability is not binary -- it is a spectrum.
+Every naming improvement, every boundary made explicit, every generic
+container replaced with a domain term, incrementally improves the
+codebase's discoverability. The goal is not perfection but continuous
+improvement toward a codebase where ~grep~ and ~find~ are reliably
+useful tools for understanding the system.
+
+** Comparison Matrix
+
+| Criterion                 | A: Names | B: +Files | C: +Boundaries | D: +Automation |
+|---------------------------+----------+-----------+----------------+----------------|
+| Effort                    | Low      | Medium    | High           | Very High      |
+| Grep discoverability      | Moderate | Good      | Excellent      | Excellent      |
+| Find discoverability      | None     | Good      | Good           | Good           |
+| 3-hop trace pass rate     | ~50%     | ~65%      | ~90%           | ~90%+          |
+| Enforcement mechanism     | Review   | Review    | Review+Docs    | CI             |
+| Incremental adoption      | Yes      | Partial   | Partial        | No             |
+| Framework compatibility   | High     | Medium    | Medium         | Medium         |
+| Maintenance cost          | None     | Low       | Medium         | High           |

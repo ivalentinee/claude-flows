@@ -1,0 +1,454 @@
+#+TITLE: Three-Role Module Decomposition: Research Findings
+#+DATE: 2026-08-20
+
+* Executive Summary
+
+The three-role module decomposition pattern -- splitting a module's internals into *communication* (routing, delegation, message handling), *action* (business logic, transformations), and *data building* (constructing, validating, shaping data structures) -- has no single established name in the literature. However, it is a natural synthesis of several deeply researched ideas from Joe Armstrong, Alan Kay, Bertrand Meyer, Ralf Westphal, Gary Bernhardt, Dave Thomas, and others. The pattern is distinctive because it operates /within/ a single module responsibility (non-boundary split points), enforces mutual oblivion between sibling roles, and elevates data construction to a first-class concern.
+
+* 1. Joe Armstrong: Process Isolation and the "I Don't Care" Principle
+
+** 1.1 Concurrency-Oriented Programming (COP)
+
+Joe Armstrong coined the term "Concurrency-Oriented Programming" and laid out its properties in his 2003 PhD thesis, "Making reliable distributed systems in the presence of software errors":
+
+- Everything is a process.
+- Processes are strongly isolated.
+- Process creation and destruction is lightweight.
+- Message passing is the only way for processes to interact.
+- Processes share no resources.
+- Error handling is non-local.
+- Processes do what they are supposed to do or fail.
+
+The key insight for module design: *isolation implies asynchronous messaging*. Armstrong wrote that if process communication is synchronous, a software error in the receiver could indefinitely block the sender, destroying the property of isolation. This is the formal basis for the "I don't care" principle -- one role must successfully delegate to another without being coupled to the other's internal behavior.
+
+** 1.2 "Share Nothing" and Module Boundaries
+
+Armstrong emphasized that "two processes operating on the same machine must be as independent as if they ran on physically separated machines." Conventional languages using shared-state threads make it "extremely difficult to isolate components from each other -- errors in one component can propagate to another component and damage the internal consistency of the system."
+
+** 1.3 "Let It Crash" as Role Autonomy
+
+The "let it crash" philosophy means processes do not try to accommodate or predict other processes' failures. Each process fulfills its own responsibility or fails cleanly. Translated to module roles: the communication role sends messages without worrying about how the action role handles them. The action role transforms data without worrying about how the data building role constructs its inputs.
+
+** 1.4 Transfer to Non-Process Module Design
+
+Armstrong's principles transfer directly to module decomposition even without actual OS-level processes:
+
+| COP Property          | Module-Level Analog                                          |
+|-----------------------+--------------------------------------------------------------|
+| Process isolation     | Role autonomy: each file/function has one concern            |
+| Async messaging       | Return values and function calls as "messages"               |
+| Share nothing         | No shared mutable state between roles                        |
+| Let it crash          | Each role does its job or fails; no accommodation of others  |
+| Lightweight processes | Cheap to create small, focused modules/files                 |
+
+Sources:
+- [[https://dockyard.com/blog/2018/07/18/all-for-reliability-reflections-on-the-erlang-thesis][DockYard: Reflections on the Erlang Thesis]]
+- [[https://erlang.org/download/armstrong_thesis_2003.pdf][Armstrong Thesis (PDF)]]
+- [[https://www.guug.de/veranstaltungen/ffg2003/papers/ffg2003-armstrong.pdf][Concurrency Oriented Programming in Erlang (Paper)]]
+- [[https://thenewstack.io/why-erlang-joe-armstrongs-legacy-of-fault-tolerant-computing/][The New Stack: Joe Armstrong's Legacy]]
+- [[https://en.wikiquote.org/wiki/Joe_Armstrong_(programmer)][Wikiquote: Joe Armstrong]]
+
+* 2. Alan Kay: Objects as Messaging Between Autonomous Entities
+
+** 2.1 The Original OOP Vision
+
+Alan Kay, who coined "object-oriented programming," defined his vision as:
+
+#+BEGIN_QUOTE
+"OOP to me means only messaging, local retention and protection and hiding of state-process, and extreme late-binding of all things."
+#+END_QUOTE
+
+He further emphasized: "The big idea is messaging." His inspiration was biological cells -- autonomous entities that receive signals, process internally, and emit responses via selective interfaces rather than direct state access.
+
+** 2.2 The Biological Cell Metaphor and Three Roles
+
+Kay's biological cell metaphor maps directly to the three-role split:
+
+| Cell Behavior           | Module Role    | Description                                        |
+|-------------------------+----------------+----------------------------------------------------|
+| Receive signals         | Communication  | Accept messages, route, delegate                   |
+| Process internally      | Action         | Transform, compute, apply business logic           |
+| Emit responses          | Data Building  | Construct output data structures for other cells   |
+
+A cell does not reach into another cell's internals. It receives a message, does its work, and produces output. Each phase is conceptually distinct even though it happens within one entity.
+
+** 2.3 Late Binding and Role Independence
+
+Kay's emphasis on "extreme late-binding" means an object/module should not need to know at design time exactly who will receive its output or who sent its input. This reinforces the "I don't care" principle: the communication role does not hardcode knowledge of the action role's implementation; it simply delegates.
+
+** 2.4 Not MVC, Not Modern OOP
+
+Kay explicitly distanced his vision from inheritance-centric OOP (C++, Java) and from architectural patterns like MVC. His concern was about the internal nature of autonomous entities, not about application-level layer separation. This matches the user's stipulation: this three-role pattern is about internal module structure, not external communication handling.
+
+Sources:
+- [[https://notes.shixiangxi.com/en/docs/appendix/alan-kay-on-oop/][Alan Kay on the Meaning of OOP]]
+- [[https://medium.com/javascript-scene/the-forgotten-history-of-oop-88d71b9b2d9f][The Forgotten History of OOP]]
+- [[https://ralfwestphal.substack.com/p/principle-of-mutual-oblivion-pomo][Westphal: Principle of Mutual Oblivion (deriving from Kay)]]
+- [[https://dev.to/muhammad_salem/alan-kays-vision-of-oop-k5h][Alan Kay's Vision of OOP]]
+
+* 3. Closest Established Patterns
+
+** 3.1 Ralf Westphal: PoMO and IOSP
+
+Ralf Westphal formalized two principles that directly relate to the three-role split:
+
+*** Principle of Mutual Oblivion (PoMO)
+"Two modules at the same level of abstraction should not know each other." Westphal traces this directly to Alan Kay's biological cell analogy: software components "are in no position to demand anything and just react to whatever presents itself to them." This is the formal statement of the "I don't care" principle.
+
+*** Integration Operation Segregation Principle (IOSP)
+"Functions shall either only contain logic or they shall only call other functions." This splits all functions into:
+- *Integrations*: orchestrate by calling other functions, contain no logic
+- *Operations*: contain logic, call no other functions
+
+Mapping to the three roles:
+| IOSP Role   | Three-Role Equivalent | Reason                                                |
+|-------------+-----------------------+-------------------------------------------------------|
+| Integration | Communication         | Routes messages, delegates to action functions         |
+| Operation   | Action                | Contains business logic, no delegation                 |
+| Operation   | Data Building         | Contains construction logic, no delegation             |
+
+The three-role pattern refines IOSP by recognizing that "operations" are not homogeneous -- some operate on behavior (action) and some operate on structure (data building). Separating these two kinds of operations is the distinctive contribution.
+
+Sources:
+- [[https://ralfwestphal.substack.com/p/principle-of-mutual-oblivion-pomo][Westphal: Principle of Mutual Oblivion]]
+- [[https://radicalobjectorientation.substack.com/p/radical-object-orientation-06-intelligent][Westphal: IOSP]]
+- [[https://ralfwestphal.substack.com/p/integration-operation-segregation][Westphal: IOSP (original)]]
+
+** 3.2 Gary Bernhardt: Functional Core / Imperative Shell
+
+Bernhardt's "Boundaries" talk (SCNA 2012) proposes:
+- *Imperative Shell*: handles I/O, mutation, side effects; has many dependencies but few conditional paths
+- *Functional Core*: makes all decisions; has many paths but no dependencies
+
+Key insight: *values (data, not code) should form the boundaries between components.*
+
+Mapping:
+| FCIS Role        | Three-Role Equivalent | Overlap                                              |
+|------------------+-----------------------+------------------------------------------------------|
+| Imperative Shell | Communication         | Handles external interaction, routing                |
+| Functional Core  | Action + Data Building | Both are pure logic, but FCIS doesn't split them    |
+
+Bernhardt's model is a two-role decomposition. The three-role pattern adds resolution by splitting the functional core into "what to do" (action) and "what shape the result should have" (data building).
+
+Sources:
+- [[https://www.destroyallsoftware.com/talks/boundaries][Bernhardt: Boundaries Talk]]
+- [[https://gist.github.com/kbilsted/abdc017858cad68c3e7926b03646554e/ecafe826e6a5f5820e82f69b5adab96249bd9952][Functional Core, Imperative Shell Notes]]
+- [[https://github.com/kbilsted/Functional-core-imperative-shell][Functional Core, Imperative Shell Repository]]
+
+** 3.3 Dave Thomas: Three-Module GenServer Decomposition
+
+Dave Thomas explicitly proposed splitting Elixir GenServers into *three* separate modules:
+
+1. *API module* -- public client functions (=start_link=, =lookup=, =create=)
+2. *Server module* -- GenServer callbacks (=handle_call=, =handle_cast=, =init=)
+3. *Implementation module* -- the actual business logic, pure functions
+
+He created a [[https://github.com/pragdave/component][Component Library]] to generate these three modules from a single definition. His rationale was that the conventional approach of putting client API, server callbacks, and implementation in one file mixed three distinct concerns.
+
+Mapping:
+| Thomas's Module  | Three-Role Equivalent | Notes                                                 |
+|------------------+-----------------------+-------------------------------------------------------|
+| API module       | Communication (ext.)  | Client-facing interface                               |
+| Server module    | Communication (int.)  | Message dispatch, routing within the process          |
+| Implementation   | Action                | Business logic as pure functions                      |
+
+Thomas's split is the closest established precedent to the three-role pattern, though it does not explicitly separate data building from action. In practice, the Implementation module would contain both.
+
+Sources:
+- [[https://pragdave.me/thoughts/active/2017-07-13-decoupling-interface-and-implementation-in-elixir.html][PragDave: Splitting APIs, Servers, and Implementations]]
+- [[https://github.com/pragdave/component][PragDave: Component Library]]
+- [[https://elixirforum.com/t/elixir-for-programmers-course-should-we-adopt-dave-thomas-way-of-organizing-genservers/14192][ElixirForum Discussion]]
+
+** 3.4 Erlang OTP Behaviours
+
+OTP behaviours (gen_server, gen_statem, supervisor) embody a two-level split:
+- *Behaviour module* (generic): handles process lifecycle, message dispatch, fault recovery
+- *Callback module* (specific): implements application-specific logic
+
+This maps to communication (behaviour) vs action (callbacks). Data building is not separated -- it's interleaved within callbacks. The Elixir community's "thin GenServer" advice pushes further toward extracting pure business logic out of callbacks, approaching the three-role pattern:
+
+#+BEGIN_QUOTE
+"Keep GenServers thin -- let them coordinate while business logic lives in separate modules."
+#+END_QUOTE
+
+Sources:
+- [[https://www.erlang.org/doc/system/design_principles.html][Erlang Design Principles]]
+- [[https://www.freshcodeit.com/blog/how-to-design-and-test-elixir-genservers][Freshcode: Testing GenServer in Elixir]]
+
+** 3.5 "Designing Elixir Systems with OTP" (Tate & Gray)
+
+Bruce Tate and James Edward Gray II proposed the "Do Fun Things with Big Loud Worker-bees" layering:
+- *Data* -- the data structures
+- *Functional* -- pure functions operating on data
+- *Tests* -- testing layer
+- *Boundaries* -- process machinery, message passing, concurrency
+- *Lifecycle* -- starting and stopping processes
+- *Workers* -- supervised task execution
+
+This maps closely:
+| Tate/Gray Layer | Three-Role Equivalent | Notes                                     |
+|-----------------+-----------------------+-------------------------------------------|
+| Boundaries      | Communication         | Process machinery, message dispatch       |
+| Functional      | Action                | Pure functions, business logic            |
+| Data            | Data Building         | Data structures and their construction    |
+
+This is perhaps the closest published architecture to the three-role pattern, though it operates at the application level rather than within a single module.
+
+Sources:
+- [[https://pragprog.com/titles/jgotp/designing-elixir-systems-with-otp/][Pragmatic: Designing Elixir Systems with OTP]]
+- [[https://www.educative.io/courses/designing-elixir-systems-with-otp/m7GgG0gX21A][Educative: OTP, State, and the Functional Core]]
+
+** 3.6 Hexagonal / Clean Architecture (Applied Internally)
+
+Hexagonal architecture (Alistair Cockburn) and Clean Architecture (Robert Martin) separate:
+- *Adapters* (outer) -- convert between external protocols and internal ports
+- *Domain* (inner) -- business logic, knows nothing about adapters
+- *Data Mappers / DTOs* -- transform data between layers
+
+When applied at the *module* level (not application level):
+| Architecture Layer   | Three-Role Equivalent | Notes                                       |
+|----------------------+-----------------------+---------------------------------------------|
+| Adapter / Port       | Communication         | Handles external interface, routing         |
+| Domain / Use Case    | Action                | Business logic                              |
+| Data Mapper / DTO    | Data Building         | Constructs data for crossing boundaries     |
+
+The key difference: hexagonal/clean architecture is designed for application-level boundaries between subsystems. The three-role pattern applies the same intuition *within* a single module's internal structure.
+
+Sources:
+- [[https://alistair.cockburn.us/hexagonal-architecture][Cockburn: Hexagonal Architecture]]
+- [[https://en.wikipedia.org/wiki/Hexagonal_architecture_(software)][Wikipedia: Hexagonal Architecture]]
+
+** 3.7 Bertrand Meyer: Command-Query Separation (CQS)
+
+Meyer's CQS principle: "Every method should either be a command that performs an action, or a query that returns data to the caller, but not both."
+
+This maps to the user's "CQRS-like directionality": each module (except communication, which may need to both receive and forward) should have one direction -- it either acts or responds. The three-role pattern applies this directional thinking at the module level:
+
+- *Communication*: bidirectional (receives messages, delegates, sometimes returns)
+- *Action*: unidirectional outward (performs transformations, produces results)
+- *Data Building*: unidirectional outward (constructs data structures, returns them)
+
+The reason for "multiple action modules" within one responsibility: the module may act in multiple directions (e.g., one action for writes, another for reads), each deserving its own sub-module with clear directionality.
+
+Sources:
+- [[https://en.wikipedia.org/wiki/Command%E2%80%93query_separation][Wikipedia: Command-Query Separation]]
+- [[https://www.martinfowler.com/bliki/CommandQuerySeparation.html][Fowler: Command Query Separation]]
+
+** 3.8 GoF Builder Pattern and DTOs
+
+The Gang of Four Builder pattern: "Separate the construction of a complex object from its representation." The pattern explicitly recognizes that building a complex object is a responsibility distinct from using it.
+
+DTOs (Data Transfer Objects) serve a similar purpose: they are "lightweight data structures with no business logic," existing solely to carry data across boundaries.
+
+Both patterns validate the idea that data construction is a distinct concern deserving its own module. The three-role pattern extends this: data building is not just a helper utility but a first-class role equal in importance to communication and action.
+
+Sources:
+- [[https://refactoring.guru/design-patterns/builder][Refactoring Guru: Builder Pattern]]
+- [[https://en.wikipedia.org/wiki/Builder_pattern][Wikipedia: Builder Pattern]]
+- [[https://medium.com/@liberatoreanita/the-dto-pattern-simplifying-data-transfer-f99ab4f25c34][DTO Pattern: Simplifying Data Transfer]]
+
+* 4. The "Data Builder" as a Separate Role: Arguments For and Against
+
+** 4.1 Arguments For Separation
+
+*** Visual space and readability
+Data construction code -- building objects with many fields, validating shapes, transforming between representations -- tends to be "visually noisy." It takes up lines of code that obscure the /intent/ of the action. Separating it makes the action code read like a narrative of what happens, not how data is shaped.
+
+*** Testability
+Data builders are pure functions: given inputs, produce a data structure. They have no side effects, no routing logic, no external dependencies. They are trivially unit-testable without mocks.
+
+*** Reuse across actions
+Multiple action modules within the same responsibility may need the same data structures. If data building is embedded in actions, this leads to duplication or awkward cross-references between actions.
+
+*** Alignment with IOSP
+Under Westphal's IOSP, data building functions are "operations" (contain logic, call no other functions). Mixing them into an "integration" (communication/routing) function violates the segregation principle.
+
+*** Alignment with Builder/Factory/DTO patterns
+GoF recognized data construction as a separate concern decades ago. The three-role pattern is the module-level application of this widely accepted idea.
+
+** 4.2 Arguments Against Separation
+
+*** Indirection overhead
+Adding a separate data-building module creates another file to navigate. For very simple data construction (a few fields), the overhead may exceed the benefit.
+
+*** Coupling to action
+Some data building is so tightly coupled to a specific action that separating them creates artificial distance. The data structure may only make sense in the context of that one action.
+
+*** Boundary ambiguity
+The line between "action logic" and "data construction" can be blurry. When does a transformation stop being "action" and start being "data building"? Without clear criteria, developers may disagree on where code belongs.
+
+** 4.3 Resolution
+
+The distinction is clearest when you ask: *does this code decide what to do, or does it shape what the result looks like?*
+
+- If it decides (conditional logic, orchestration, side effects): *action*.
+- If it shapes (constructing objects, mapping fields, validating structure): *data building*.
+- If it routes (receiving, delegating, forwarding): *communication*.
+
+Data building should be separated when:
+1. The data structure is non-trivial (more than a few fields)
+2. The construction logic contains validation or transformation
+3. The same structure is used by multiple actions
+4. Inlining the construction would obscure the action's narrative
+
+* 5. CQRS-Like Directionality at the Module Level
+
+** 5.1 Meyer's CQS Applied to Modules
+
+Each sub-module within a responsibility should ideally have one direction:
+- It either *acts on the world* (command-side, state-changing) or
+- It *responds to queries* (query-side, data-returning)
+
+This is not CQRS at the system level (separate read/write models). It is CQS at the module level: individual files/functions should not mix "doing things" with "answering questions."
+
+** 5.2 Multiple Action Modules
+
+When a single responsibility involves acting in multiple directions (e.g., both writing to storage and notifying external systems), each direction deserves its own action module. This is why the pattern allows "multiple action modules" -- each with a single direction.
+
+** 5.3 Communication as the Exception
+
+The communication role is the natural exception to unidirectionality. It must both receive (inbound) and delegate (outbound). This is acceptable because its job is routing, not logic. It is a "switchboard," and switchboards inherently handle both directions.
+
+* 6. Elixir-Specific Patterns
+
+** 6.1 Phoenix Contexts
+
+Phoenix contexts group related functionality behind a single public API module. Internally, contexts typically contain:
+- The context module itself (public API, routing/delegation) = *communication*
+- Schema modules (data structure definitions, changesets) = *data building*
+- The actual query/mutation logic is often inline in the context = *action*
+
+Phoenix contexts already embody two of the three roles as separate modules. The action role tends to remain embedded in the context module.
+
+** 6.2 GenServer Decomposition
+
+The Elixir community recommends:
+1. Client API functions (public interface) -- *communication*
+2. Server callbacks (handle_call, handle_cast) -- *communication* (internal routing)
+3. Pure business logic in separate modules -- *action*
+4. State struct and changeset logic -- *data building*
+
+Dave Thomas's explicit three-module split formalizes this and is the closest Elixir precedent.
+
+** 6.3 The "Thin GenServer" Idiom
+
+Widely recommended in the Elixir community: "Keep GenServers thin -- let them coordinate while business logic lives in separate modules." This naturally leads to communication (GenServer callbacks) being thin routing code that delegates to action modules containing pure functions.
+
+Sources:
+- [[https://hexdocs.pm/phoenix/contexts.html][Phoenix: Contexts Documentation]]
+- [[https://pragdave.me/thoughts/active/2017-07-13-decoupling-interface-and-implementation-in-elixir.html][PragDave: Splitting APIs, Servers, and Implementations]]
+- [[https://www.freshcodeit.com/blog/how-to-design-and-test-elixir-genservers][Freshcode: Testing GenServer in Elixir]]
+
+* 7. Real-World Example: videoOutput Macro
+
+Examined =src/compiler/macro/macros/videoOutput/= in this codebase.
+
+** 7.1 File-by-File Role Assignment
+
+| File                                | Role            | Evidence                                          |
+|-------------------------------------+-----------------+---------------------------------------------------|
+| =index.ts=                          | Communication   | Routes to =outputVideo= or =outputImage= by type |
+| =outputVideo/index.ts=              | Action          | Orchestrates the video output macro expansion     |
+| =outputVideo/buildOutputNode.ts=    | Data Building   | Constructs ExpandedNode for encode-video/output   |
+| =outputVideo/buildVideoData.ts=     | Data Building   | Constructs VideoData from segments                |
+| =outputVideo/segments/index.ts=     | Data Building   | Constructs Segment objects, validates, combines   |
+| =outputVideo/connectFrameNodes.ts=  | Communication   | Wires graph nodes via edges (connectNodes calls)  |
+| =outputVideo/connectTimelineData.ts=| Communication   | Wires timeline data connections                   |
+| =outputVideo/initializeVideoLoop.ts=| Mixed           | Builds loop node AND connects it                  |
+| =common/connect.ts=                 | Communication   | Primitive: creates edge between any two nodes     |
+
+** 7.2 Observations
+
+1. *The three roles are clearly present* even though no formal naming convention enforces them.
+2. *=build*= prefix consistently marks data building* -- these functions construct and return ExpandedNode or data objects.
+3. *=connect*= prefix consistently marks communication/wiring* -- these functions create edges in the graph.
+4. *The orchestrator (=outputVideo/index.ts=)* interleaves calls to both build and connect functions, serving as the integration point (IOSP integration role).
+5. *=connectNodes= is the "I don't care" exemplar*: it takes any two nodes and creates an edge between them, with no knowledge of what either node does.
+6. *Some mixing occurs* (e.g., =initializeVideoLoop= builds a node and connects it), showing that the separation is pragmatic, not dogmatic.
+7. *=buildOutputNode= internally calls =connectNodes=*, which technically mixes data building with communication. This could be seen as either: (a) a pragmatic compromise, or (b) evidence that "building a node in a graph" inherently involves both construction and wiring.
+
+** 7.3 What the Example Demonstrates
+
+The videoOutput macro shows the pattern emerging naturally from good decomposition practices. The developers didn't set out to implement a three-role pattern -- they simply separated "building things" from "connecting things" from "deciding what to build and connect." The result is code where:
+
+- *Action code reads as a narrative*: "build segments, initialize loop, connect frame nodes, build output node, build video data, return"
+- *Data building is isolated and testable*: each =build*= function can be tested with mock inputs
+- *Communication wiring is mechanical*: =connectNodes= is a pure utility with no business logic
+
+* 8. Synthesis: What Is This Pattern?
+
+** 8.1 A Name for the Pattern
+
+Based on this research, the three-role module decomposition could be called:
+
+- *Communication-Action-Data (CAD) decomposition*
+- *Route-Act-Build (RAB) split*
+- *Internal Role Segregation*
+
+No established name exists. The pattern is a refinement of:
+- Westphal's IOSP (adding a split within "operations")
+- Bernhardt's FCIS (adding a split within the "functional core")
+- Dave Thomas's three-module split (generalizing beyond GenServers)
+- Clean/Hexagonal (applying the intuition within a single module)
+
+** 8.2 Formal Definition
+
+Within a single module responsibility:
+1. *Communication* modules handle routing, delegation, and message dispatch. They are IOSP "integrations" -- they call other functions but contain no logic. They are the "shell" in FCIS terms.
+2. *Action* modules contain business logic and transformations. They are IOSP "operations." They make decisions, apply rules, perform computations. They may exist in multiple directions (command-side, query-side).
+3. *Data Building* modules construct, validate, and shape data structures. They are also IOSP "operations" but are distinguished from action by their concern: structure over behavior. They are the "DTOs and Factories" of the module.
+
+** 8.3 The "I Don't Care" Principle (Formalized)
+
+Derived from Armstrong's process isolation and Westphal's PoMO:
+
+#+BEGIN_QUOTE
+A module in one role must be able to successfully use a module in another role without being aware of that module's internal behavior. All roles work toward the single responsibility of their parent module.
+#+END_QUOTE
+
+This means:
+- Communication does not know how action works -- it just delegates
+- Action does not know how data building constructs its inputs -- it just uses the result
+- Data building does not know what action will do with the data -- it just produces it
+- Communication does not know how data building shapes its outputs -- it just forwards them
+
+** 8.4 When to Apply
+
+The three-role split is most valuable when:
+1. A module's responsibility involves receiving input, processing it, and producing structured output
+2. Data construction is non-trivial (complex objects, validation, transformation)
+3. Multiple actions need the same data structures
+4. The action's narrative is obscured by inline data construction
+5. Testing would benefit from isolating data building as pure functions
+
+The split is unnecessary when:
+1. The module is simple enough that one file is readable
+2. Data construction is trivial (a few fields, no validation)
+3. The entire module is already a pure function
+
+** 8.5 Relationship to Architectural Patterns
+
+| Pattern                 | Scope             | Roles     | Data Building Explicit? |
+|-------------------------+-------------------+-----------+-------------------------|
+| Three-Role Decomp.      | Within module     | 3         | Yes                     |
+| IOSP (Westphal)         | Function level    | 2         | No (subsumed in "ops")  |
+| FCIS (Bernhardt)        | Application level | 2         | No (subsumed in "core") |
+| Thomas 3-Module         | GenServer level   | 3         | No                      |
+| OTP Behaviour           | Process level     | 2         | No                      |
+| Tate/Gray Layers        | Application level | 6         | Yes ("Data" layer)      |
+| Hexagonal/Clean         | System level      | 3 (ish)   | Yes (mappers/DTOs)      |
+| MVC/MVVM                | Application level | 3         | No (different concern)  |
+| CQS/CQRS (Meyer)       | Method/system     | 2         | No                      |
+| GoF Builder             | Object level      | 2         | Yes                     |
+
+** 8.6 Key Insight: Non-Boundary Split Points
+
+Most architectural patterns (hexagonal, clean, onion, MVC) define boundaries between subsystems. The three-role pattern defines split points *within* a single subsystem. These are "non-boundary" splits -- the three roles are not independent services or layers but sibling files collaborating on one responsibility. This is why MVC and MVVM are not applicable: those patterns cater to the communication between distinct subsystems, while this pattern addresses how a single subsystem organizes its internal work.
+
+* 9. Open Questions for Design
+
+1. *Naming convention*: Should the codebase adopt naming prefixes (=build*=, =connect*=, =handle*=) to signal roles, or should directory structure suffice?
+2. *Mixed files*: When is it acceptable for a file to span two roles (as =initializeVideoLoop.ts= does)?
+3. *Granularity*: At what complexity threshold should a single file be split into three?
+4. *Data building ownership*: When multiple actions share a data builder, should it live alongside the first consumer or in a shared location?
+5. *Testing strategy*: Should data builders receive more thorough unit testing than action/communication modules, given their pure-function nature?

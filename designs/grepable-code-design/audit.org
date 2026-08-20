@@ -1,0 +1,686 @@
+#+STARTUP: overview
+#+title:      Audit: Grepable Code Coverage in Existing Rules & Reviewer Roles
+#+date:       [2026-08-20 Wed]
+#+identifier: grepable-code-audit
+#+category:   code-quality
+
+* Grepable Code Audit — Coverage of Find + Grep Discoverability
+
+An audit of existing code quality rules (CODE-QUALITY.md) and reviewer roles
+(FULL-FLOW.md step 6, IMPLEMENTATION-FLOW.md step 3) for coverage of the
+grepable code property: code behavior is discoverable using =find= (filenames)
+and =grep -B10 -A10= (local context) without reading entire modules.
+
+** Executive Summary
+
+Existing rules and reviewers provide *partial* coverage of grepability:
+
+- *Strong:* variable/function naming rules and general clarity principles
+- *Weak:* cross-boundary name consistency, generic container detection, data flow
+  traceability, filename meaningfulness
+- *Missing:* any reviewer explicitly checks "can I find where this value comes
+  from with grep?" or "does this function name reveal what data flows through it?"
+
+Three classes of grepability gaps identified:
+1. Generic container names as grep-blockers (=data=, =config=, =opts=, =extra=)
+2. Value renaming at subsystem boundaries (e.g., =scalingFactor= → =extra["scalingFactor"]= → =scaling_factor=)
+3. Function/file names that don't reveal data flow or purpose
+
+---
+
+* Part A: Existing Naming Rules vs. Grepability
+
+** Rule 1: "Use full, unambiguous variable names — no abbreviations, ever"
+
+*Source:* CODE-QUALITY.md, Core Principles, line 27-30
+
+*Examples given:*
+- =rp= → =result_publisher=
+- =cfg= → =config=
+- =opts= → =options=
+
+*Grepability support:* **STRONG** — this rule directly enables grep discovery.
+If a value is named =result_publisher= everywhere, =grep result_publisher= will
+find all occurrences without false matches.
+
+*Gap:* The rule says "no abbreviations" but does NOT constrain the abbreviation
+itself. A programmer could replace =rp= with =res_pub= (still 6 characters, still
+searchable but still an abbreviation). The principle is "full, unambiguous" but
+needs enforcement guidance: "unambiguous" could mean "clear within context" or
+"globally unique."
+
+** Rule 2: "Rename fields to domain terms, not implementation terms"
+
+*Source:* CODE-QUALITY.md, Naming, line 63-66
+
+*Example:*
+- =source_graph= → =template= (if it holds a Template object)
+
+*Grepability support:* **MODERATE** — domain terms are often more stable and
+meaningful, but this rule conflates two things:
+1. Don't expose implementation detail in naming (good for clarity)
+2. Use domain terminology (good for grep when domain terms are consistent)
+
+*Gap:* The example shows renaming a field to the domain type, but doesn't address
+what happens when the *same value* is called =template= in one place and
+=source_graph= in another (boundary crossing). Rule addresses internal naming
+but not cross-boundary consistency.
+
+** Rule 3: "Avoid vague container names"
+
+*Source:* CODE-QUALITY.md, Self-Documenting Code, line 239-242
+
+*Vague names flagged:*
+- =data=, =value=, =item=, =result=, =info=, =temp=
+
+*Examples of good names:*
+- =validated_order= (not =data=)
+- =publisher_config= (not =config=)
+- =retry_count= (not =value=)
+
+*Grepability support:* **STRONG** — this is the most directly grep-relevant rule.
+A variable named =data= will match thousands of results; =validated_order= will
+match its specific uses.
+
+*Critical gap:* Rule exists, but applies to **local variables only**, not:
+- Struct/map field names (e.g., a map with ={"data": ...}= or =extra= field)
+- Module parameters (function args, GenServer state)
+- Configuration keys (=config["key"]=)
+
+The rule does NOT prohibit =config=, =opts=, =extra=, =params= as field names
+or container names, only as local variables. But in practice, these are often
+used as fields:
+
+#+begin_src elixir
+# This is allowed under current rules (not a local variable name)
+%{"extra" => %{"scalingFactor" => 1.5}}
+
+# But grep "scalingFactor" will also match:
+# extra["scalingFactor"], extra.scalingFactor, params[:scaling_factor], etc.
+# Making it harder to trace than grep "validatedOrderId"
+#+end_src
+
+** Rule 4: "Name functions as meaningful domain verbs"
+
+*Source:* CODE-QUALITY.md, Self-Documenting Code, line 233-237
+
+*Vague verbs flagged:*
+- =process=, =handle=, =manage=, =do=
+
+*Good examples:*
+- =validate_items=, =publish_result=, =advance_stage=
+
+*Bad examples:*
+- =process_data=, =handle_event=, =do_work=
+
+*Grepability support:* **MODERATE** — a function named =validate_items= suggests
+its inputs/outputs better than =process=, helping grep context. But the rule
+doesn't explicitly require function names to indicate *what data flows through*.
+
+*Gap:* Function names reveal *action* (validate, publish, advance) but not
+*subject* (what is being validated?). Example:
+
+#+begin_src elixir
+# This is "good" by current rules (meaningful verb)
+def setup(config), do: ...
+
+# But doesn't reveal: is this setting up a worker? A database? A cache?
+# Better: def setup_cache(config), def setup_worker(config)
+#+end_src
+
+** Rule 5: Boolean naming convention (implicit)
+
+*Source:* CODE-QUALITY.md, Code Clarity Reviewer Checklist, line 254-255
+
+*Pattern:*
+- =is_expired=, =has_permission=, =can_retry=
+
+*Grepability support:* **STRONG** — predictable boolean naming helps grep because
+the pattern is consistent. Seeing =is_= prefix immediately signals "boolean
+check."
+
+** Gaps Summary (Part A)
+
+| Gap | Impact | Severity |
+|-----|--------|----------|
+| No rule against generic container field names (=extra=, =config=, =opts=) | Grep finds hundreds of irrelevant matches | High |
+| No rule for cross-boundary name consistency | Value renames at subsystem borders block 3-hop tracing | High |
+| Function names reveal action but not subject/data | Grep =publish= finds unrelated calls | Medium |
+| "Unambiguous" defined contextually, not globally | An abbreviation like =res_pub= might still pass review | Medium |
+| No rule about filename meaningfulness | File names don't reveal purpose or data role | Medium |
+
+---
+
+* Part B: Existing Reviewer Coverage
+
+** Design Phase Reviewers (FULL-FLOW.md Step 6)
+
+| # | Role | Focus |
+|---|------|-------|
+| 1 | Correctness Reviewer | Verify claims against actual code, find missing operations or mismatched signatures |
+| 2 | Edge Case Reviewer | Concurrent access, race conditions, failure modes, missing error handling |
+| 3 | Integration Reviewer | Caller/callee contracts, ETS access patterns, cross-module consistency |
+| 4 | API Reviewer | **Naming consistency, function signatures, module boundaries** |
+| 5 | Test Reviewer | Test sufficiency, untested code paths, e2e preference, specific test cases |
+| 6 | Spec Reviewer | Formal spec completeness and validity, prose-only contracts |
+| 7 | Boundary Reviewer | Subsystem boundaries, interface narrowness, formalization levels, cross-boundary leaks |
+
+*Grepability-adjacent roles:*
+- **#3 Integration Reviewer:** "cross-module consistency" is close but focuses on
+  contracts, not naming
+- **#4 API Reviewer:** "Naming consistency" directly touches naming, but scope is
+  "function signatures, module boundaries" — not value flow or grep-traceability
+- **#7 Boundary Reviewer:** "cross-boundary leaks" could catch boundary renames,
+  but focus is on interface leakage, not naming consistency
+
+*Critical findings:*
+- None of these reviewers have grepability in their explicit mandate
+- No reviewer checks: "Can I find where this value comes from with grep?"
+- No reviewer checks: "Is this name stable across boundaries?"
+- No reviewer checks: "Does the filename reveal purpose?"
+
+** Implementation Phase Reviewers (IMPLEMENTATION-FLOW.md Step 3)
+
+| # | Role | Focus |
+|---|------|-------|
+| 1 | Design Fidelity Reviewer | Diff intent vs. implementation — flag drift, missing pieces, silent deviations |
+| 2 | Correctness Reviewer | Logic errors, off-by-one mistakes, wrong assumptions, null handling |
+| 3 | Edge Case Reviewer | Race conditions, failure modes, error handling, boundary conditions |
+| 4 | Test Reviewer | Uncovered behaviors/branches, unnecessary mocking, missing test cases |
+| 5 | Spec Reviewer | Schema correctness, runtime validation matching declared schemas |
+| **6** | **Style Reviewer** | **Naming consistency, pattern consistency with existing codebase, code organization** |
+| 7 | Principles Reviewer | SRP, DIP, Information Expert, Low Coupling, High Cohesion, Creator (smell detection) |
+| 8 | Abstraction Minimalist | Function-level tier consistency, missing intermediate tiers, module-level API coherence |
+| 9 | Code Clarity Reviewer | Self-documenting quality: naming reveals intent, types express constraints, comments explain "why" not "what", control flow self-evident |
+
+*Grepability-adjacent roles:*
+
+- **#6 Style Reviewer:** "Naming consistency, pattern consistency with existing
+  codebase" — this is the closest fit. But the description doesn't explicitly
+  mention grep-traceability, cross-file consistency, or container name control.
+
+- **#9 Code Clarity Reviewer:** "naming reveals intent" and checks against
+  CODE-QUALITY.md "Self-Documenting Code" checklist. This checklist includes
+  item #1: "Do function/variable names reveal purpose, not implementation?"
+  — but the checklist itself doesn't explicitly check grepability.
+
+*Critical findings:*
+- No reviewer has grepability as an explicit criterion
+- Style Reviewer (#6) is closest but doesn't check container names, filename
+  meaning, or cross-boundary naming
+- Code Clarity Reviewer (#9) checks naming quality but not grep-traceability
+- No reviewer checks: "Can you trace this value across file boundaries with
+  grep?"
+- No reviewer checks: "Is this function/file name stable through the system?"
+
+** Code Clarity Reviewer Checklist (Implementation, line 244-275 in CODE-QUALITY.md)
+
+The existing checklist used by the Code Clarity Reviewer in implementation:
+
+#+begin_src
+*Naming clarity:*
+1. Do function/variable names reveal purpose, not implementation?
+2. Do function names use meaningful verbs, not vague ones?
+3. Do boolean names read as true/false propositions?
+4. Do names use domain terminology from the design doc?
+
+*Type expressiveness:*
+5. Do types express constraints that would otherwise need comments?
+6. Are function signatures self-documenting?
+
+*Comment discipline:*
+7. Does every comment explain *why*, not *what*?
+8. Could any comment be eliminated by refactoring?
+
+*Structural clarity:*
+9. Does each function operate at one level of abstraction?
+10. Is control flow self-evident, or does understanding require reading
+    non-adjacent code?
+#+end_src
+
+*Grepability assessment:* Items 1-4 support grepability partially:
+- Item 1: "reveal purpose" helps grep, but doesn't require grep-traceability
+- Item 2: "meaningful verbs" helps, but doesn't check what data flows
+- Item 3: Boolean naming is grep-friendly, but limited scope
+- Item 4: Domain terminology helps, but doesn't require cross-boundary consistency
+
+*Items 5-10* are orthogonal to grepability.
+
+*Missing from checklist:* none of the 10 items explicitly check:
+- Container name genericness (=data=, =extra=, =config= as fields)
+- Cross-boundary name stability
+- Filename meaningfulness
+- Data flow visibility in function names
+- The "3-hop grep test" (can you trace a value in ≤3 grep calls?)
+
+---
+
+* Part C: Specific Grepability Gaps
+
+** Gap 1: Generic Container Names at Module Boundaries
+
+*Problem:*
+
+The rule "Avoid vague container names" applies to local variables but NOT to
+struct fields or configuration containers:
+
+#+begin_src elixir
+# Local variable — VIOLATES rule, would be caught by reviewer
+data = fetch_data()  # Bad
+
+# Struct field or map key — ALLOWED by current rules
+%{"data" => result}  # OK (?)
+config = %{"timeout" => 5000}  # OK
+extra = %{"scaling_factor" => 1.5}  # OK
+state = %{"config" => cfg, "handlers" => handlers}  # OK
+#+end_src
+
+When values live in generic containers (=extra=, =config=, =data=, =params=,
+=opts=, =state=), grep becomes useless:
+
+#+begin_src sh
+# Trying to find where "scaling_factor" comes from
+$ grep -B5 -A5 "scaling_factor"
+# Result: hundreds of matches in config hashes, parameter maps, etc.
+# No way to know which one is the "real" source
+#+end_src
+
+*Why it matters for grepability:*
+
+A value in a specific field (=user.id=, =order.status=) can be traced with grep.
+A value in =extra["scaling_factor"]= or =config[:scale_factor]= is noise.
+
+*Current coverage:* Code Clarity Reviewer checks variable names but not field
+names or container structures.
+
+** Gap 2: Value Renaming at Subsystem Boundaries
+
+*Problem:*
+
+The same logical value changes names at subsystem boundaries:
+
+#+begin_src
+TypeScript:    const scalingFactor = 1.5;
+JSON over wire: {"scalingFactor": 1.5}
+Elixir struct: %{"extra" => %{"scalingFactor" => 1.5}}
+Elixir local:  scaling_factor = extra["scalingFactor"]
+Elixir stored: %{scale_factor: scaling_factor}
+#+end_src
+
+After 3 renames, grep "scalingFactor" no longer finds the stored value.
+
+*Why it matters for grepability:*
+
+The "3-hop grep test" — can you trace a value in ≤3 grep hops? — fails when each
+hop requires a rename lookup.
+
+*Current coverage:*
+- Rule 2 ("Rename fields to domain terms") addresses internal renaming but not
+  cross-boundary consistency
+- No reviewer explicitly checks: "Is this value's name stable as it crosses
+  boundaries?"
+- No reviewer checks: "Should I be renaming this at this boundary, or should I
+  preserve the original name?"
+
+** Gap 3: Function Names Don't Reveal Data Flow
+
+*Problem:*
+
+Current rule: "Name functions as meaningful domain verbs"
+
+#+begin_src elixir
+# "Good" by current rules (meaningful verb)
+def setup(config) do
+  # But what is being set up? Worker? Database? Cache?
+  # A grep for "setup" matches 50 functions
+end
+
+# "Good" by current rules
+def handle(message, state) do
+  # But what message? What kind of handling?
+  # A grep for "handle" matches 100 functions
+end
+
+# "Good" by current rules
+def merge(left, right) do
+  # But what is being merged? Rules? Configs? User permissions?
+  # A grep for "merge" matches 200 functions
+end
+#+end_src
+
+Function names reveal *action* but not *subject* or *data flow*.
+
+*Better for grep:*
+
+#+begin_src elixir
+def setup_cache(config)
+def setup_worker(config)
+
+def handle_timeout_message(message, state)
+def handle_shutdown_signal(message, state)
+
+def merge_permission_rules(left, right)
+def merge_runtime_config(left, right)
+#+end_src
+
+*Why it matters for grepability:*
+
+- Grep for "setup_cache" matches the function and its callers specifically
+- Grep for "setup" matches too broadly
+- A function name revealing data flow helps grep across call chains
+
+*Current coverage:*
+- Rule 4 ("meaningful domain verbs") requires verbs but not compound
+  subject+verb names
+- No reviewer checks: "Does this function name reveal what data flows through
+  it?"
+- Code Clarity Reviewer checks that verbs are meaningful but not that they
+  indicate subject
+
+** Gap 4: Filename Meaningfulness
+
+*Problem:*
+
+Current rules don't require filenames to be meaningful or to reveal purpose:
+
+#+begin_src
+Generic file names:
+- stage/running/operations/setup.ex — "setup" is vague, what?
+- lib/utils.ex — "utils" is meaningless
+- handlers/handler.ex — "handler" is generic
+- lib/config/loader.ex — doesn't reveal what is loaded
+
+Meaningful file names:
+- lib/cache/eviction_policy.ex — clear purpose
+- lib/worker/lifecycle_manager.ex — clear responsibility
+- lib/publish/result_formatter.ex — clear what and where
+#+end_src
+
+*Why it matters for grepability:*
+
+- Filenames are discovered via =find=; they're the entry point for grep
+- A filename like =setup.ex= provides no context; a grep search later will be
+  less effective
+- A filename like =cache_eviction_policy.ex= narrows the context and makes grep
+  results more meaningful
+
+*Current coverage:*
+- No rule in CODE-QUALITY.md addresses filename meaningfulness
+- No reviewer checks filenames for clarity or data-flow indication
+- API Reviewer checks "module boundaries" but not filename adequacy
+
+** Gap 5: The 3-Hop Grep Test
+
+*Problem:*
+
+The research prompt (grepable-code research.org) defines a key metric:
+
+"Can the value path be traced in <=3 grep hops?"
+
+Example: =scalingFactor= in JavaScript → how many greps to find where it's
+stored/computed/used in Elixir?
+
+Current rules don't make this testable or mandatory.
+
+*What it requires:*
+1. Consistent naming across boundaries (Gap 2)
+2. Non-generic container names (Gap 1)
+3. Function names revealing data flow (Gap 3)
+4. Meaningful filenames (Gap 4)
+
+*Current coverage:* Zero — no explicit mention of this metric in any rule or
+reviewer mandate.
+
+---
+
+* Part D: Comparison — What's Covered vs. Missing
+
+** Existing Strengths
+
+| Criterion | Coverage | Source |
+|-----------|----------|--------|
+| Full, unambiguous variable names | STRONG | CODE-QUALITY rule 1 + Code Clarity #1 |
+| Domain terms over impl terms | STRONG | CODE-QUALITY rule 2 + Code Clarity #4 |
+| Avoid vague local variable names | STRONG | CODE-QUALITY rule 3 + Code Clarity #1 |
+| Meaningful function verbs | STRONG | CODE-QUALITY rule 4 + Code Clarity #2 |
+| Boolean naming pattern | STRONG | CODE-QUALITY implicit + Code Clarity #3 |
+| Naming consistency | MODERATE | Implementation Style Reviewer #6 |
+| Intent-revealing names | MODERATE | Implementation Code Clarity Reviewer #9 |
+
+** Existing Gaps
+
+| Criterion | Gap | Impact | Source |
+|-----------|-----|--------|--------|
+| Generic container field names | NO rule, NO reviewer check | Cannot grep through generic containers | Both |
+| Cross-boundary name consistency | NO rule, NO reviewer check | 3-hop test fails on boundary renames | Both |
+| Function names reveal data subject | NO explicit rule | Grep for action matches too broadly | CODE-QUALITY #4 insuffient |
+| Filename meaningfulness | NO rule, NO reviewer check | Entry point for discovery is vague | Both |
+| 3-hop grep trace test | NO test, NO metric | Grepability not measured | Both |
+| Generic containers as grep-breakers | NO mention | Unclear this is a quality issue | Both |
+| Value renaming between subsystems | NO mention | Cross-boundary traceability ignored | Both |
+
+** Summary: Naming Coverage Score
+
+- Rules that support grepability: 5/7 core naming rules partially or fully
+- Gaps in rules: 5 major gaps identified
+- Reviewers covering grepability: 2 of 9 (Style #6, Code Clarity #9) — neither
+  with explicit grepability mandate
+- Explicit grepability checking: **0%**
+
+---
+
+* Part E: Recommendations for Gaps
+
+** Priority 1 (High): Rules + Reviewer Amendments
+
+*** R1: Extend "Avoid vague container names" rule
+
+Current rule applies only to local variables. Extend to include:
+- Struct/map field names
+- Configuration parameter names
+- State container names
+- Intermediate data structures
+
+New wording:
+#+begin_quote
+**Never use generic container names in any scope.**
+- Local variables: =data= → =validated_order=
+- Struct fields: =config= → =cache_config=, =worker_config=
+- Map containers: =extra= → =extra_runtime_params=, =extra_timing_constraints=
+- State fields: =state["data"]= → =state[:validation_cache]=
+
+Generic names to avoid: =data=, =value=, =item=, =result=, =info=, =temp=,
+=extra=, =config=, =opts=, =params=, =state= (as catch-all).
+
+Rationale: Generic names make code ungrepable. A value in =extra["scaling_factor"]=
+produces hundreds of grep matches; a value in =runtime_scaling_factor= produces
+a dozen.
+#+end_quote
+
+*** R2: Add rule for function names revealing subject + action
+
+Current rule: meaningful verbs. Extend to require subject.
+
+New rule:
+#+begin_quote
+**Function names must reveal both action (verb) and subject (noun).**
+- Bad: =setup=, =handle=, =process=, =merge= (action only)
+- Good: =setup_cache=, =handle_timeout_message=, =process_validation_errors=,
+  =merge_permission_rules= (action + subject)
+
+Exception: when the subject is obvious from context (inside a Worker module,
+=setup= is acceptable if it's =Worker.setup=). But prefer clarity.
+
+Rationale: A function name revealing data flow makes grep results meaningful.
+Searching for =setup_cache= is 10x more useful than searching for =setup=.
+#+end_quote
+
+*** R3: Add rule for cross-boundary name consistency
+
+New rule:
+#+begin_quote
+**Names must be consistent across subsystem boundaries.**
+- If a value is =scalingFactor= in TypeScript, use =scaling_factor= (not
+  =scale_factor=, =scale_fact=) in Elixir
+- When extracting from a generic container (e.g., =extra["scaling_factor"]=),
+  assign to a local variable with the same name: =scaling_factor =
+  extra["scaling_factor"]=
+- Create a convention doc listing all cross-boundary name mappings
+
+Rationale: Enables the 3-hop grep test. If a value name changes at each boundary,
+tracing is impossible.
+#+end_quote
+
+*** R4: Add rule for meaningful filenames
+
+New rule:
+#+begin_quote
+**Filenames must reveal purpose or responsibility, not generic operations.**
+- Bad: =setup.ex=, =handler.ex=, =utils.ex=, =lib.ex=
+- Good: =cache_eviction_policy.ex=, =worker_lifecycle_manager.ex=,
+  =validation_error_formatter.ex=
+
+Test: if the filename would make sense if prefixed with a module name
+(=UserCache.setup_cache.ex=), it reveals purpose. If not
+(=UserCache.setup.ex=), it's too generic.
+
+Rationale: Filenames are the entry point for =find=. Meaningful filenames guide
+the grep search and narrow context.
+#+end_quote
+
+** Priority 2 (Medium): Reviewer Amendments
+
+*** Reviewer Change 1: Style Reviewer (#6 in Implementation)
+
+Current mandate:
+#+begin_quote
+Naming consistency, pattern consistency with existing codebase, code
+organization, module boundaries
+#+end_quote
+
+Extend to explicitly include:
+#+begin_quote
+**Grepability check:** Do all names (variables, functions, files, fields) enable
+tracing with grep? Specifically:
+- No generic container names (=data=, =extra=, =config=, =opts=)
+- Function names reveal action + subject (not just action)
+- Filenames are meaningful and reveal purpose
+- Names are consistent across subsystem boundaries where the same value flows
+#+end_quote
+
+*** Reviewer Change 2: Code Clarity Reviewer (#9 in Implementation)
+
+Current checklist item #1:
+#+begin_quote
+Do function/variable names reveal purpose, not implementation?
+#+end_quote
+
+Extend to:
+#+begin_quote
+Do function/variable names reveal purpose AND enable grep discoverability?
+- Names are unambiguous globally (not just locally)
+- Function names reveal action + subject, not just action
+- Container names are specific, not generic
+- Names are stable across subsystem boundaries (when same value flows through)
+#+end_quote
+
+** Priority 3 (Medium): New Metric
+
+Add to evaluation criteria:
+#+begin_quote
+**The 3-Hop Grep Test:** Can you trace any value from its origin to its final
+use in ≤3 grep searches? If a value requires >3 greps (e.g., due to renaming,
+generic containers, or obfuscated flow), grepability is compromised.
+
+Check during Code Clarity review: pick 1-2 critical values, attempt the
+3-hop test, report findings.
+#+end_quote
+
+** Priority 4 (Low): Optional New Reviewer
+
+Consider adding an optional **Grepability Reviewer** that runs after Code
+Clarity. Focus:
+- Verify container names are specific, not generic
+- Verify cross-boundary name consistency
+- Attempt 3-hop trace on 2-3 critical values
+- Report any filenames that are too generic
+
+This could be lightweight (10 min per review) if scoped to critical paths only.
+
+---
+
+* Part F: Assessment Summary
+
+** Existing Coverage
+
+- **Naming rules:** 5 of 7 support grepability; 2 gaps in rules themselves
+- **Reviewers:** 0 of 9 have explicit grepability mandate; 2 adjacent roles (Style
+  #6, Code Clarity #9) could be extended
+- **Metrics:** No measurement of grep-traceability or 3-hop success
+
+** Gaps Identified
+
+| Gap | Severity | Fix |
+|-----|----------|-----|
+| Generic container names allowed | High | R1: Extend rule to all scopes |
+| No cross-boundary name consistency rule | High | R3: Add rule + reviewer check |
+| Function names don't reveal subject | Medium | R2: Extend verb rule to subject+verb |
+| No meaningful filename rule | Medium | R4: Add filename rule |
+| No 3-hop metric | Medium | P3: Add as evaluation criterion |
+| No explicit grepability reviewer focus | Medium | Reviewer amendments (P2) |
+
+** Recommended Next Steps
+
+1. **Immediate:** Add R1, R2, R3, R4 as amendments to CODE-QUALITY.md
+2. **Immediate:** Update Style Reviewer (#6) mandate to include container name
+   checks
+3. **Immediate:** Update Code Clarity Reviewer (#9) checklist to include
+   grepability questions
+4. **Short-term:** Create cross-boundary naming convention doc (reference in
+   CODE-QUALITY.md)
+5. **Optional:** Add P4 Grepability Reviewer for high-risk modules
+
+---
+
+* Appendix: Checklist for Extended Code Clarity Reviewer
+
+When reviewing code for grepability, check:
+
+** Naming
+
+- [ ] Every local variable name is specific, not generic (not =data=, =value=,
+      =item=, =result=, =info=, =temp=)
+- [ ] Every function name reveals both action (verb) and subject (noun), or
+      subject is obvious from context (module name)
+- [ ] Every struct/map field name is specific (not =config=, =opts=, =extra=,
+      =params= as catch-alls)
+- [ ] Boolean names read as propositions (=is_=, =has_=, =can_=)
+- [ ] Names use domain terminology consistently with the design doc
+
+** Cross-boundary Consistency
+
+- [ ] If a value appears in multiple subsystems, its name is stable across
+      boundaries (or mapping is documented)
+- [ ] When extracting from a generic container (e.g., =extra["scaling_factor"]=),
+      the extracted variable has the same name (=scaling_factor=)
+- [ ] No silent renames at subsystem boundaries without explicit assignment
+
+** Data Flow Visibility
+
+- [ ] Function names reveal what data flows through them (not just what they do)
+- [ ] Filenames reveal purpose or responsibility (not generic =setup.ex=,
+      =handler.ex=)
+- [ ] Critical data paths are traceable with ≤3 grep searches
+
+** Greppability Test (optional, for critical code)
+
+- [ ] Pick 1-2 critical values (e.g., user ID, authorization token, computed
+      factor)
+- [ ] Attempt to trace each value from origin to final use
+- [ ] Count grep searches required
+- [ ] If ≤3 greps succeed: grepability is good
+- [ ] If >3 greps needed or path is broken: flag for revision
+
+---
+
+* End of Audit
