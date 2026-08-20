@@ -114,6 +114,7 @@ steps — the user picks by intent, not by process.
 - Full: `~/.claude/flows/FULL-FLOW.md`
 - Implementation: `~/.claude/flows/IMPLEMENTATION-FLOW.md`
 - Architecture: `~/.claude/flows/ARCHITECTURE.md` (read when designing subsystem boundaries)
+- Grounded Reasoning: `~/.claude/flows/GROUNDED-REASONING.md` (read by all flows automatically)
 - Code Quality: `~/.claude/flows/CODE-QUALITY.md` (read before writing code)
 - Denote Metadata: `~/.claude/flows/DENOTE.md` (read by all flows automatically)
 - Query Script: `~/.claude/flows/denote-query` (artifact queries and extraction)

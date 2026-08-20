@@ -278,23 +278,19 @@ When touching existing code, improve grepability opportunistically.
 
 ## Grounded Reasoning
 
-Code quality depends on reality-testing, not just reasoning about
-code. Five principles:
+Read and apply `GROUNDED-REASONING.md` (in this directory). The nine
+principles (execution over reasoning, experiment to understand,
+isolate and test, separate generator/verifier, claims require
+evidence, freshness discipline, avoidance requires proof, ground in
+reality not user's statements, evidence spectrum) apply to ALL flows.
 
-**Execution over reasoning.**
-- When you can test a claim by running code, run it. Don't reason
-  about what "would" happen — verify it.
-- Experimentation is discovery, not just verification. When you
-  don't understand what code does, the first move is to run it —
-  not to read it harder.
+**Code-specific extensions** (below) supplement those principles:
 
 **Mutate to understand.**
 - Code is not an immutable artifact during investigation. To
   understand what a value does, change it and run the code. To
   understand a condition, invert it and observe. To understand a
   function's role, remove its call and see what breaks.
-- This is the scientific method applied to code: change one
-  variable, observe the effect, form a grounded understanding.
 - Always restore changes after investigation (`git checkout` or
   `git stash`), but never hesitate to make them.
 
@@ -303,57 +299,11 @@ code. Five principles:
   never the minimum runnable unit.
 - To understand `algorithm.js`, create a throwaway 10-line script
   that imports it, feeds it sample data, and prints the result.
-  Don't run the entire application.
 - To understand an Elixir module, open `iex -S mix` and call its
   functions directly with sample arguments.
 - The cost of creating a throwaway caller is almost always less
   than the cost of reasoning about the code's behavior from
   reading alone.
-
-**Separate generator and verifier.**
-- Never trust yourself to both generate and validate code. Write
-  code, then run tests — separate steps, separate verification.
-
-**Claims require evidence.**
-- Assertions about behavior ("this will cause a race condition",
-  "this library supports X") must be backed by evidence: file path
-  + line number, test output, error reproduction, or benchmark.
-  If you have not verified, say "I have not verified this claim."
-
-**Freshness discipline.**
-- Re-read files before making claims about their content. If more
-  than ~5 reasoning steps have passed since reading a file, re-read
-  before asserting facts about it.
-
-**Avoidance requires proof.**
-- "Pre-existing issue", "not worth pursuing", "unlikely edge case"
-  are claims that require evidence. If you have not tested the claim,
-  you cannot make it. Verify: `git stash` + run tests, measure with
-  a benchmark, write a property test, or read the actual docs.
-- "Behavior unchanged" requires the same evidence as "behavior
-  changed." If claiming an issue is pre-existing, prove the code
-  is identical in main AND causes the issue there too.
-
-**Ground in reality, not in user's statements.**
-- When the user proposes a technical approach, check it against
-  actual code before implementing. If the code shows the user's
-  model is wrong, inform before complying — state what the code
-  actually shows, what the consequences are, let the user decide.
-- This is not about disagreeing with the user. It is about Claude
-  grounding its output in code reality, which creates productive
-  friction that helps BOTH sides discover model drift.
-- When Claude disagrees after checking: state the objection in one
-  sentence with specific evidence, then comply if the user confirms.
-  Record the disagreement. Never silently comply when evidence
-  suggests the direction is wrong — but also never refuse.
-
-**Evidence is not only execution.**
-- A structural observation ("this module has mixed concerns") is
-  grounded when the concerns are enumerated in writing without
-  contradiction. Writing them down IS the evidence.
-- Evidence spectrum: execution (test output, benchmark) >
-  articulable enumeration (written list that survives scrutiny) >
-  ungrounded assertion ("I think this might...").
 
 ### Property-First Test Design
 

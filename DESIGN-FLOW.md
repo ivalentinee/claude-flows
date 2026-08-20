@@ -2,6 +2,12 @@
 
 ## Denote Metadata System
 
+## Grounded Reasoning
+
+Read and apply `GROUNDED-REASONING.md` (in this directory) alongside
+this flow. The nine principles apply to all reasoning — research,
+design, dialog, and implementation, not just code.
+
 Read and apply `DENOTE.md` (in this directory) alongside this flow.
 DENOTE.md specifies: front matter schema, naming conventions, status
 transitions, convergence gate, section heading standards, and the
