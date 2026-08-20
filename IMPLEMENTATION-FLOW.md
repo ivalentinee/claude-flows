@@ -229,11 +229,16 @@ Skip LSP (inheritance-oriented), ISP (Elixir behaviours are already minimal), OC
 - Public functions should read like a coherent API at one level;
   lower-tier helpers should be private
 
-*Module split — can the module be decomposed by abstraction tier?*
-- For modules over ~150 lines, actively look for a tier split:
-  assign each function (public and private) a tier label (e.g.,
-  "orchestration", "data transformation", "I/O", "formatting",
-  "tracing/observability"). If two or more tiers each have ≥3
+*Module split — can the module be decomposed by role or abstraction tier?*
+- For modules over ~150 lines, actively look for a split along the
+  three module roles (see CODE-QUALITY.md "Module Roles"):
+  - Does this module mix communication (handlers, public API),
+    action (business logic), and data building (construction)?
+  - Can these be separated into files named by role convention?
+  - Do dependencies flow communication → action → data?
+- If not split by role, look for a tier split: assign each function
+  a tier label ("orchestration", "data transformation", "I/O",
+  "formatting", "tracing"). If two or more tiers each have ≥3
   functions AND ≥30 lines, the module is a split candidate.
 - Group the lower-tier functions by micro-domain (e.g., tracing,
   result processing, registry/tracking, formatting). Each group
@@ -244,6 +249,9 @@ Skip LSP (inheritance-oriented), ISP (Elixir behaviours are already minimal), OC
 - Do NOT split when: the module is under ~150 lines, the "low tier"
   is just 2-3 small helpers, or the split would create single-caller
   modules with no independent testability or reuse value.
+- When refactoring existing code: prefer role-based splits over
+  tier-based splits. Role splits produce files with clear naming
+  conventions (build_*, connect_*) that improve grepability.
 
 *Cross-module — are callers forced to know implementation details?*
 - If a caller must understand the internal data layout, parsing

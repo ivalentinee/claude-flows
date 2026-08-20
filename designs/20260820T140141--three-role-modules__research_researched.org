@@ -1,0 +1,240 @@
+#+STARTUP: overview
+#+title:      Research: Three Module Roles — Communication, Action, Data Building
+#+date:       [2026-08-20 Wed 14:01]
+#+filetags:   :research:researched:architecture:modules:code-quality:
+#+identifier: 20260820T140141
+#+signature:
+#+deferred:
+
+* Research: Three Module Roles — Communication, Action, Data Building
+
+** Original Prompt
+Fitting codebase into 3 module/file roles: "module communication",
+"action" and "data building".
+
+** Steering
+- [2026-08-20 18:10] The major factor here is the "I don't care" principle: one role should not be aware about another's behavior, but be able to successfully use it, yet all the roles should work towards a single "module responsibility". Another example: every module (except, maybe, for the "communication" one in some cases) should only have one direction: it either acts or responds (something akin CQRS). Another reason - decoupling - almost every module does 3 things: handle communication with other modules, acts on it, and parses/builds data - the three are a "non-boundary" split points, which allow for smaller files and better naming.
+
+- [2026-08-20 18:12] Also, sometimes even within a single module there might be multiple "action" modules: not because of module being overburdened with responsibility, but because it has to act in "multiple directions", which - again - are some natural points for splitting, even if within a single "module responsibility".
+
+- [2026-08-20 18:15] And one more: "data building" (or data processing - in case any parsing/normalization should be applied) is a separate "role" for one particular reason - most of the time data building takes a lot of visual space, and cluttering "communication" and "action" code with it makes the code worse at communicating it's behavior.
+
+- [2026-08-20 18:20] While it looks like MVVM/MVC application (in a way, it is), these are not applicable directly, since these cater to an external communication handling, not internal.
+
+- [2026-08-20 18:25] I believe it is worth researching Joe Armstrong and Alan Kay, since these CS experts were/are striving towards better (and simpler) module communication and "isolation". Basically, elixir/erlang communication should become project's strength, not "spaghettifying" weakness.
+
+- [2026-08-20 18:30] Clarification on "communication": by this I mean "accepting requests from other modules and responding" — like class public functions, Erlang/Elixir GenServer handlers (handle_call, handle_cast, handle_info), API controller actions, and similar. It's the module's interface/boundary — the part that receives input from the outside world (other modules) and dispatches to action modules. NOT orchestration of other modules (that's closer to "action" or a higher-level concern).
+
+- [2026-08-20 19:00] Scope reduction principle: all three roles follow
+  a strict scope reduction order: communication → action → data.
+  Actions know less about their surroundings than the communication
+  layer, and data modules know even less than actions. Same applies
+  to inter-module calls: the caller usually knows more "on the global
+  scale" but less "details" than the callee. This plays well with
+  Erlang/Elixir process calls. Seen as a frivolous rendition of
+  Barbara Liskov's substitution principle from SOLID.
+
+- [2026-08-20 19:05] Please also research SOLID and GRASP principle
+  composability/enhancement to the three-role approach. How do SRP,
+  OCP, LSP, ISP, DIP, and GRASP patterns (Information Expert, Creator,
+  Low Coupling, High Cohesion, Controller, Polymorphism, Pure
+  Fabrication, Indirection, Protected Variations) map to, reinforce,
+  or conflict with the three-role taxonomy?
+
+** Question
+Can every module/file in a codebase be classified into one of three
+roles — (1) module communication (orchestration, routing, delegation),
+(2) action (business logic, transformations, side effects), and
+(3) data building (constructing, validating, shaping data structures)
+— and does enforcing this classification improve code quality,
+grepability, and maintainability?
+
+** Context
+This relates to the Abstraction Minimalist's tier system (which
+already distinguishes orchestration from detail-level work) and to
+the grepable code research (where file/module role clarity aids
+discoverability). The hypothesis: if every module has a clear,
+singular role from this taxonomy, then:
+
+- =find= on filenames reveals the module's role
+- =grep= within a module finds only one kind of work
+- The Abstraction Minimalist's tier checks become simpler (a module
+  at the wrong role is a structural smell)
+- Data flow becomes more traceable (communication modules show the
+  path, action modules show the transformations, data modules show
+  the shapes)
+
+*** On the role purpose
+The major factor here is the "I don't care" principle: one role should not be aware about another's behavior, but be able to successfully use it.
+
+An example:
+
+** In Scope
+- Definition and boundaries of each role
+- How this maps to existing patterns (hexagonal architecture, clean
+  architecture, functional core/imperative shell, ports & adapters)
+- Whether existing code (e.g., the =/app= codebase) naturally fits
+  or resists this classification
+- Filename and module naming conventions per role
+- How this interacts with the Abstraction Minimalist, Code Clarity
+  Reviewer, and grepability rules
+- Language-specific considerations (Elixir modules, TypeScript files)
+
+** Out of Scope
+- Refactoring existing codebases to fit (that's implementation)
+- Formal type-system enforcement
+- Microservice-level architecture (this is about module/file level)
+
+** Evaluation Criteria
+1. Clarity — can every module be unambiguously classified?
+2. Completeness — does the taxonomy cover all real-world modules?
+3. Grepability — does the classification improve =find= + =grep=
+   discoverability?
+4. Practicality — can it be adopted incrementally?
+5. Existing pattern alignment — does it conflict with or extend
+   established architecture patterns?
+
+** Known Leads
+- Functional core / imperative shell (Gary Bernhardt)
+- Clean architecture (Uncle Bob) — entities, use cases, adapters
+- Hexagonal architecture — ports and adapters
+- The Abstraction Minimalist's tier labels: "orchestration", "data
+  transformation", "I/O", "formatting", "tracing"
+- Elixir conventions: context modules, schema modules, live views
+- The grepable code research (=20260820T135610=)
+- Ralf Westphal's IOSP (Integration Operation Segregation Principle)
+- Dave Thomas's three-module GenServer split
+- SOLID principles (especially LSP for scope reduction, SRP for role
+  clarity, DIP for dependency direction)
+- GRASP patterns (Information Expert, Creator, Controller, Pure
+  Fabrication, Indirection, Protected Variations)
+- Joe Armstrong's COP thesis, Alan Kay's messaging-first OOP
+- Cross-reference: grepable code research (=20260820T135610=) —
+  the three-role naming conventions (=build*=, =connect*=, =index.ts=)
+  directly enable grep discoverability. Role-based naming IS grep
+  handle creation. The two researches synergize: role clarity makes
+  filenames meaningful, which makes =find= useful, which makes code
+  grepable.
+
+** Findings
+
+*** No exact prior art, but a natural synthesis
+
+No single source uses exactly this three-role split under one name.
+It synthesizes from:
+
+| Source | Contribution |
+|--------|--------------|
+| Joe Armstrong (COP) | Process isolation, "I don't care", fail-fast |
+| Alan Kay (OOP as messaging) | Cells receive → process → emit |
+| Ralf Westphal (IOSP) | Closest 2-role ancestor: integrate vs operate |
+| Dave Thomas (GenServer split) | API + Server + Implementation |
+| Gary Bernhardt (FC/IS) | Shell = communication, core = action+data |
+| Tate/Gray (Designing Elixir Systems) | Data / Functional / Boundaries |
+
+The distinctive contribution: operates *within* a single module
+responsibility (not between architectural layers), elevates data
+construction to a first-class concern, enforces mutual oblivion
+between sibling roles.
+
+*** Macro code analysis: 85% compliance
+
+The =/app/src/compiler/macro/macros/= directory naturally exhibits the
+pattern. Naming conventions emerge:
+
+| Prefix | Role | Predictive accuracy |
+|--------|------|---------------------|
+| =build*= | Data building | 100% |
+| =get*=, =create*=, =collect*= | Data building | 100% |
+| =connect*=, =reconnect*=, =put*= | Communication/wiring | ~95% |
+| =index.ts= | Action/orchestrator | ~95% |
+
+Pattern breaks occur in hybrid files that mix roles (=runExactlyOnce=,
+=outputImage=, =combineSegments=).
+
+Detailed analysis in [[file:three-role-modules-design/macro-analysis.org][macro-analysis.org]].
+
+*** SOLID/GRASP mapping: all reinforcing, no conflicts
+
+Every SOLID and GRASP principle maps to or is reinforced by the
+three-role pattern:
+
+| Principle | Mapping |
+|-----------|---------|
+| SRP | Three roles = SRP-preserving decomposition |
+| OCP | Communication is closed, actions are open for extension |
+| LSP | Scope gradient = substitutability through reduced context |
+| ISP | Each role exposes minimal API to its consumers |
+| DIP | Dependencies flow communication → action → data |
+| Information Expert | Scope gradient IS Information Expert as a rule |
+| Creator | Data Building IS the Creator pattern |
+| Controller | Communication IS the Controller pattern |
+| Low Coupling | "I don't care" enforces low coupling |
+| High Cohesion | Each role = one kind of work by construction |
+| Pure Fabrication | Data Building IS Pure Fabrication (design convenience) |
+| Indirection | Communication IS Indirection between callers and logic |
+| Protected Variations | Each role is a variation point with stable interface |
+
+No fourth role is needed — edge cases (error handling, side effects)
+are handled by existing language mechanisms.
+
+Detailed mapping in [[file:three-role-modules-design/solid-grasp.org][solid-grasp.org]].
+
+*** Synergy with grepable code
+
+Role-based naming IS grep handle creation:
+- =find -name "build*.ts"= finds all data builders
+- =find -name "connect*.ts"= finds all wiring
+- =grep "export function build"= finds all builder entry points
+
+The three-role pattern makes filenames meaningful, which makes =find=
+useful, which makes code grepable.
+
+** Comparison
+
+*** Status quo (no role taxonomy)
+
+Modules mix communication, action, and data building. Reviewers check
+tier consistency (Abstraction Minimalist) and naming (Code Clarity)
+but have no vocabulary for role classification.
+
+*** Three-role as a structural rule
+
+Modules are classified as communication, action, or data building.
+Naming conventions follow role. Scope reduction enforced.
+
+*** Three-role as a reviewer check only
+
+Existing Abstraction Minimalist gains role awareness: when proposing
+module splits, it classifies the resulting modules by role.
+
+** Recommendation
+
+*** Add "Module Roles" section to CODE-QUALITY.md
+
+Document the three-role taxonomy as a structural guideline (not a
+rigid mandate) that applies to both new code and refactoring.
+
+*** Extend Abstraction Minimalist with role awareness
+
+When the Abstraction Minimalist proposes a module split (≥2 tiers
+with ≥3 functions each), it should classify the proposed sub-modules
+by role (communication, action, data building) and verify:
+- Each sub-module has a single role
+- Dependencies flow communication → action → data
+- Naming follows role conventions
+
+*** No new reviewer needed
+
+The existing Abstraction Minimalist and Code Clarity Reviewer
+together cover the role taxonomy when extended with the rules above.
+
+** Decision
+
+Implemented in CODE-QUALITY.md (Module Roles section) and
+Abstraction Minimalist checklist. Applies to both new code and
+refactoring.
+
+** Open Questions
+
+All resolved via steering and SOLID/GRASP mapping.

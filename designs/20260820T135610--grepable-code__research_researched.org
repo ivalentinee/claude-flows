@@ -1,7 +1,7 @@
 #+STARTUP: overview
 #+title:      Research: Grepable Code — Discoverable-by-Tools Code Quality
 #+date:       [2026-08-20 Wed 13:56]
-#+filetags:   :research:code-quality:grepability:naming:discoverability:
+#+filetags:   :research:researched:code-quality:grepability:naming:discoverability:
 #+identifier: 20260820T135610
 #+signature:
 #+deferred:
@@ -77,6 +77,12 @@ https://ivalentinee.github.io/en/programming/2020/08/22/aliases-in-elixir.html
 - "Screaming architecture" (Uncle Bob — filenames reveal intent)
 - Greppable code concept (various blog posts)
 - The existing CODE-QUALITY.md naming rules
+- Cross-reference: three-role module research (=20260820T140141=) —
+  role-based naming (=build*=, =connect*=) IS grep handle creation.
+  The macro code analysis shows 90%+ filename-to-role predictive
+  accuracy. The two researches synergize: if modules have clear
+  roles, filenames can encode those roles, making =find= a reliable
+  entry point for code discovery.
 
 ** Findings
 
@@ -255,7 +261,10 @@ that property.
 
 ** Decision
 
-Pending.
+All open questions resolved. Implemented in CODE-QUALITY.md (Grepable
+Code section + 3 Code Clarity Reviewer checklist items). Rules apply
+to both new code and refactoring — when touching existing code,
+improve grepability opportunistically.
 
 ** Open Questions
 
@@ -263,16 +272,31 @@ Pending.
    entirely, or only when it's an untyped map with >3 keys? Some
    uses (=Application.get_env(:app, :config)=) are conventional.
 
+   A generic name is fine when it's either: (a) a domain/conventional
+   name (=:app, :config= in Elixir, or =config= being a universal
+   name across the code for "operation config"), or (b) something
+   that fully fits within one file (a brief grep-like search within
+   the file answers "what it is and how it's used"). For untyped
+   bags: use Elixir structs or TypeScript types/interfaces to make
+   contents grepable. Dialyzer typespecs may bring additional
+   discoverability properties.
+
 2. *Cross-language shared schemas:* the experiment found TS and
    Elixir communicate via untyped JSON. Should the grepability
    rules recommend shared schema definitions (e.g., JSON Schema
    referenced by both sides)?
+
+   Schemas should be shared between Elixir and NodeJS code when these schemas operate on cross-system level, i.e. schemas should probably not guard Elixir-NodeJS communication, but could be shared for common AMQP/HTTP/data-transfer interations.
 
 3. *Retrofit vs new-code-only:* should existing code be refactored
    to match, or do the rules apply only to new code? The experiment
    shows the =/app= codebase has deep grepability problems — fixing
    them is a significant effort.
 
+   The research should only touch Claude behavior going forward, and should only update flow definitions. Grep-enabling refactoring is expected, but it'll be a separate task.
+
 4. *The =3-hop= threshold:* is 3 the right number? The experiments
    showed 7-10 hops. Should 3 be aspirational (for new code) with
    a higher tolerance for legacy?
+
+   In a nutshell, it's not about the amount of hops, but the semantic continuity: each next hop should lead to a code that makes sense in relation to the previous hop place.

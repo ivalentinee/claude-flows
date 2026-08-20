@@ -65,6 +65,22 @@ rules below are the floor; the user's code is the ceiling.
 - Field names should reflect the domain concept, not where the data
   came from or how it was derived.
 
+**Function declarations should communicate purpose without reading the body.**
+- A reader should make a fair guess at what a function does AND how
+  it does it from the declaration alone: name, argument names and
+  types, return type.
+- Name communicates WHAT: `compile_template`, `validate_segments`
+- Argument names communicate WITH WHAT: `(template, compiler_options)`
+  not `(data, opts)`
+- Argument types communicate CONSTRAINTS: `(ExpandedTemplate, CompilerOptions)`
+  not `(map(), keyword())`
+- Return type communicates OUTCOME: `{:ok, CompiledTemplate} | {:error, CompilationError}`
+  not `any()`
+- If the declaration doesn't tell the story, the function is either
+  poorly named, has overly generic types, or does too many things.
+- Elixir: `@spec` on public functions is mandatory for this reason.
+  TypeScript: avoid `any`, use domain types and branded types.
+
 ---
 
 ## Code Structure
@@ -86,6 +102,154 @@ rules below are the floor; the user's code is the ceiling.
 **Write only what the recipient expects — not the full struct.**
 - Before serializing for an external consumer, read the consumer's
   expected format. Send exactly that, not the internal representation.
+
+---
+
+## Module Roles
+
+Every module/file should serve one of three roles within its parent
+responsibility. This applies to new code AND when refactoring — when
+splitting an oversized module, classify the resulting files by role.
+
+**Communication** — the module's inbound interface.
+- GenServer handlers (`handle_call`, `handle_cast`, `handle_info`)
+- Public API functions, controller actions, route handlers
+- Receives requests from other modules and dispatches to action
+- Knows the most about the system (routing, protocol, callers)
+- Should contain NO business logic and NO data construction
+
+**Action** — business logic dispatched by communication.
+- Decisions, transformations, side effects, orchestration
+- Knows less than communication (only its domain concern)
+- Calls data builders for construction, returns results to
+  communication
+- Multiple action files per responsibility are valid when the
+  module acts in "multiple directions"
+
+**Data Building** — constructing, validating, shaping data structures.
+- Node/struct construction, serialization, parsing, normalization
+- Knows the least about the system (only data shapes)
+- Takes visual space that would clutter action code
+- Pure Fabrication (GRASP): exists for design clarity, not domain
+
+### Scope reduction gradient
+
+Dependencies and knowledge flow in one direction:
+`communication → action → data building`. Each successive role knows
+less about its surroundings. The caller knows more globally; the
+callee knows more details. This is the Clean Architecture Dependency
+Rule applied within a module.
+
+### "I don't care" principle
+
+Each role is oblivious to the others' internals. A data builder
+doesn't know who calls it or why. An action doesn't know how
+communication received the request. Communication doesn't know how
+data is shaped internally.
+
+### Naming conventions by role
+
+| Role | Filename prefixes | Example |
+|------|------------------|---------|
+| Communication | module name, handler suffix | `operation_orchestrator.ex` |
+| Action | verb + domain noun | `compile_template.ts`, `validate_segments.ex` |
+| Data Building | `build_*`, `create_*`, `get_*` | `build_output_node.ts`, `create_run_config.ex` |
+
+### When refactoring existing code
+
+When a module mixes roles (common in legacy code):
+1. Identify which lines are communication, action, or data building
+2. Extract each role into its own file/module
+3. Name files by role convention
+4. Verify dependencies flow communication → action → data
+5. Check: does each resulting file have a single role?
+
+---
+
+## Grepable Code
+
+Code should be discoverable using `find` (filenames) and
+`grep -B10 -A10` (local context) without reading entire modules.
+
+The core principle is **grep continuity**: not grepability by the
+same term, but grepability step-by-step without dead ends. Each
+grep hop lands at code that reveals the next term to grep for.
+The chain never breaks — even when a value is renamed through a
+transformation, the transformation function's declaration contains
+both the old and new names.
+
+This applies equally to new code AND refactoring existing code.
+When touching existing code, improve grepability opportunistically.
+
+**Every concept gets a grep handle.**
+- A grep handle is a unique, stable string connecting a concept's
+  definition to all usage sites. When you grep for it, you find
+  every place that concept appears.
+- Generic names (`data`, `extra`, `config`, `info`, `payload`) are
+  NOT grep handles — they match everything and identify nothing.
+- A generic name is acceptable ONLY when: (a) it's a domain-
+  conventional name universal across the codebase (e.g., `config`
+  always meaning "operation config" everywhere), or (b) it's fully
+  scoped within one file (a grep within the file answers what it is).
+- The moment a generic-named untyped bag crosses file boundaries,
+  it needs either a domain-qualified name or a typed struct.
+
+**Consistent names across boundaries.**
+- When a value crosses a boundary (API → backend → database), the
+  root words stay identical. Only case convention may change:
+  `scalingFactor` (JS) → `scaling_factor` (Elixir) → `scaling_factor`
+  (DB column).
+- NEVER rename a concept at a boundary. If `maxHeight` enters the
+  system, it stays `maxHeight`/`max_height` everywhere — not
+  `scalingFactor` downstream.
+- If a computed value is genuinely different, it gets its own name
+  AND the transformation function's declaration links the two names:
+  `maxHeightToScalingFactor(maxHeight: number): number`. This way
+  grepping for `maxHeight` lands at the transformation, and grepping
+  for `scalingFactor` continues the trail — no comment needed. Do
+  NOT annotate every usage with "derived from X" comments; that
+  floods the codebase with noise that a single grep can resolve.
+
+**Function names include subject, not just action.**
+- `compile` → `compile_template`. `resolve` → `resolve_graph_node`.
+  `setup` → `setup_operation_environment`.
+- The grep test: grepping for the function name should find ONLY
+  calls related to that specific domain concept.
+- When refactoring: rename existing functions to include their
+  subject when the current name is ambiguous.
+
+**Filenames reveal purpose.**
+- `setup.ex` → `operation_environment_setup.ex`.
+  `entries.ts` → `template_run_entries.ts`.
+  `utils.ts` → split into domain-specific files.
+- The `find` test: scanning filenames should tell you where to look
+  for a specific concept without opening files.
+- When refactoring: rename files whose current name gives no hint
+  of their actual content.
+
+**No opaque map containers crossing file boundaries.**
+- `extra: :map` is a grepability black hole — 22 matches in the
+  template_runner, all pointing to the same opaque `%{string => any}`.
+- Use typed structs (Elixir) or interfaces (TypeScript) to make
+  container contents grepable. At minimum, add `@type` specs or
+  doc comments listing expected keys.
+- String-keyed map access (`get_in(extra, ["scalingFactor"])`) is
+  invisible to refactoring tools. Prefer atom keys and struct
+  access where possible.
+- Dialyzer typespecs bring additional discoverability properties.
+
+**Elixir-specific: use full alias form.**
+- `alias A.B.C` (grepable) not `alias A.B.{C, D}` (compact but
+  grep-breaking). The full module path must appear as a contiguous
+  string in the source.
+
+**Cross-language schemas.**
+- When Elixir and TypeScript (or any two languages) share data via
+  AMQP, HTTP, or other cross-system interactions, use shared schema
+  definitions (JSON Schema, OpenAPI) referenced by both sides.
+- Internal Elixir-NodeJS communication within the same system does
+  not require formal shared schemas if the contract is small and
+  well-typed on both ends.
 
 ---
 
@@ -272,6 +436,19 @@ checks whether the code encodes the domain's mental model:
    Minimalist checklist for the full heuristic)
 10. Is control flow self-evident, or does understanding require
     reading non-adjacent code?
+
+*Grepability:*
+11. Can you trace any key value's path through the changed code
+    with semantic continuity? (Consistent names across boundaries,
+    no opaque containers crossing files, meaningful function/file
+    names.) When refactoring, check: did you improve or degrade
+    traceability?
+12. Do new function names include the domain subject? (Not just the
+    action — `setup_operation_environment` not `setup`.) When
+    renaming existing functions, add the subject.
+13. Are generic container names (`data`, `extra`, `config`) either
+    domain-conventional or file-scoped? If they cross file
+    boundaries, do they have a typed struct/interface?
 
 ---
 
