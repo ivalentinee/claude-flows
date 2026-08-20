@@ -1,0 +1,357 @@
+#+STARTUP: overview
+#+title:      Research: Actor-Driven Architecture — Single-Rank Subsystem Boundaries
+#+date:       [2026-08-20 Wed 17:41]
+#+filetags:   :research:researched:architecture:actors:subsystems:boundaries:
+#+identifier: 20260820T174132
+#+signature:
+#+deferred:
+
+* Research: Actor-Driven Architecture — Single-Rank Subsystem Boundaries
+
+** Original Prompt
+What I find naturally fitting most of the project is a clean
+separation between communication, processing and data management.
+While "onion/clean architecture" would level all HTTP and AMQP the
+same, it is counter-productive in practice. An architecture where
+subsystems are organized by "who drives the action" works better:
+
+#+begin_example
+Request Handler (AMQP) -> |                       | -> remote system 1 (AMQP)
+Request Handler (HTTP) -> | Action/behavior layer | -> remote system 2 (HTTP)
+                          |                       | -> DB
+#+end_example
+
+The key argument: "who authors the action, and who responds to that
+action." The communication layer is both "outside" (request handlers)
+and "inside" (calling remote systems) the action layer — it doesn't
+wrap around it like onion layers. Instead, all subsystems sit at the
+same rank, connected by message passing.
+
+I want to clarify: where should the line between subsystems be drawn?
+
+** Steering
+- [2026-08-20 17:41] Ancient article on combining this heuristic
+  with Phoenix contexts:
+  https://ivalentinee.github.io/en/programming/2018/11/12/alternative-phoenix-contexts-approach.html
+  Phoenix contexts reference: https://phoenix.hexdocs.pm/contexts.html
+
+- [2026-08-20 17:41] The =/app= codebase tries to maintain "request
+  handler", "storage", "processing" and "remote calls" subsystems,
+  not wrapped around each other but using single-rank communication.
+  Not fully fulfilled (rushed development, half-made Elixir transition).
+
+- [2026-08-20 17:41] Joe Armstrong and the Actor Model answer this
+  question, but if treated carelessly become spaghetti. The research
+  should address how to get Actor Model benefits without spaghetti.
+
+- [2026-08-20 17:41] Single-rank "driving" architecture absorbs
+  different projects better than any multi-rank system. Defining
+  "actors" should drive the architecture.
+
+- [2026-08-20 17:41] This naturally adopts the three-role pattern
+  (communication/action/data) at the module level, while the
+  architecture level organizes subsystems by actor role.
+
+** Question
+Where should the line between subsystems be drawn? Specifically:
+how does an actor-driven, single-rank architecture (subsystems
+organized by "who drives the action") compare to layered
+architectures (clean/onion/hexagonal), and what principles determine
+subsystem boundaries?
+
+** Context
+The user's experience across projects shows that:
+
+1. *Clean/onion architecture is counter-productive* for projects with
+   mixed communication protocols (HTTP + AMQP + DB). Wrapping
+   everything in concentric layers forces artificial equivalence
+   between fundamentally different boundary types.
+
+2. *"Who drives the action" is a better boundary heuristic.* Request
+   handlers drive actions. Actions drive remote calls and storage.
+   The communication layer is NOT a single ring — it exists on both
+   sides of the action layer (inbound and outbound), at the same rank.
+
+3. *Single-rank communication* means subsystems don't wrap each other.
+   Request Handler, Action Layer, Remote System Client, and DB
+   Storage all sit at the same level, connected by explicit message
+   passing. No subsystem is "inside" another.
+
+4. *Actor Model is the natural implementation* but requires discipline
+   to avoid spaghetti. Erlang/Elixir provides the primitives;
+   architecture provides the constraints.
+
+5. *The three-role module pattern* (communication/action/data) applies
+   within each subsystem. The architecture question is about how
+   subsystems relate to each other.
+
+The =/app= project structure reflects this (imperfectly):
+- =src/server/http/= — request handlers (inbound HTTP)
+- =src/server/mq/= — request handlers (inbound AMQP)
+- =src/server/services/= — action/processing layer
+- =src/server/database/= — storage
+- =src/server/gateways/= — remote system clients (outbound)
+
+** In Scope
+- Actor-driven vs layered architecture comparison
+- Single-rank vs multi-rank subsystem organization
+- Where to draw subsystem boundaries (the heuristic)
+- How the Actor Model (Erlang/OTP) informs subsystem design
+- How Phoenix contexts fit (or don't)
+- How this interacts with the three-role module pattern
+- Anti-spaghetti discipline for actor-based systems
+- How the =/app= codebase structure relates
+
+** Out of Scope
+- Microservice architecture (this is about internal subsystem boundaries)
+- Distributed systems concerns (CAP, consensus)
+- Specific framework choices
+
+** Evaluation Criteria
+1. Can subsystem boundaries be determined from "who drives what"?
+2. Does single-rank organization simplify or complicate understanding?
+3. Does it avoid the problems of layered architecture?
+4. Does it prevent actor-model spaghetti?
+5. Does it synergize with three-role modules and grepable code?
+
+** Known Leads
+- User's article: https://ivalentinee.github.io/en/programming/2018/11/12/alternative-phoenix-contexts-approach.html
+- Clean Architecture: https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html
+- Phoenix contexts: https://phoenix.hexdocs.pm/contexts.html
+- Joe Armstrong's COP thesis
+- Actor Model (Hewitt, Agha)
+- =/app= codebase structure (server/http, server/mq, server/services,
+  server/database, server/gateways)
+- Three-role module research (=20260820T140141=)
+- Grepable code research (=20260820T135610=)
+- Bernhardt's Functional Core / Imperative Shell
+- Ports and Adapters (Alistair Cockburn)
+
+** Findings
+
+*** Thesis validated with caveats
+
+The actor-driven, single-rank boundary approach has strong support
+from multiple independent sources: Armstrong's COP (six formal
+properties), Hewitt's Actor Model, the Reactive Manifesto, Akka+DDD,
+and Vertical Slice Architecture. The common principle: boundaries
+reflect *who drives the action*, not technical infrastructure.
+
+Key caveat: single-rank does NOT mean no internal structure.
+Supervision trees, protocol discipline, and message contracts are
+mandatory. "Rank" refers to subsystem-to-subsystem relationships,
+not internal organization.
+
+*** Clean/onion/hexagonal critique
+
+Layered architectures face legitimate criticism:
+- Artificial separation forces context-switching during feature work
+- Premature abstraction (interfaces before need)
+- Poor fit for distributed/message-passing systems
+- Communication layer is NOT a single ring — it exists on both
+  sides of the action layer (inbound handlers, outbound clients)
+
+They excel when: large teams need structural guardrails, or systems
+undergo technology migrations. NOT when the system is actor/message-
+oriented.
+
+*** Choreography naturally emerges from single-rank
+
+The saga pattern has two forms:
+- *Choreography* (peer-to-peer events) → maps to single-rank
+- *Orchestration* (centralized coordinator) → introduces temporary
+  hierarchy within a single rank
+
+Both coexist. Choreography is the default for actor systems;
+orchestration is added for specific tightly-coupled workflows.
+The orchestrator is just another peer, not a layer.
+
+*** Anti-spaghetti discipline is non-negotiable
+
+Single-rank without discipline becomes tangled message spaghetti.
+Required:
+- Versioned message contracts
+- Clear state ownership per actor
+- Typed protocols (Elixir behaviours, TypeScript interfaces)
+- Supervision hierarchy for lifecycle (orthogonal to behavioral rank)
+- Unidirectional action flow (who drives whom must be explicit)
+- Tracing/observability (OpenTelemetry)
+
+*** Phoenix contexts validate the thesis
+
+Imposing layered boundaries on BEAM/OTP produced friction. The most
+effective Elixir architectures use OTP applications as boundaries,
+not Phoenix contexts. The user's 2018 article anticipated this.
+
+*** Codebase audit: weakly-layered hybrid
+
+The =/app= codebase intends single-rank but has 4 boundary breaks:
+1. HTTP controllers call gateways directly (skip service layer)
+2. Controllers contain business logic (validation, ID matching)
+3. Gateway self-initialization (no centralized lifecycle)
+4. Service-to-service coupling unclear (no ownership model)
+
+The Elixir template_runner is well-architected: proper actor patterns,
+gen_statem state machine, GenServer actors, message boundaries.
+
+Detailed audit in [[file:actor-driven-architecture-design/audit.org][audit.org]].
+
+** Comparison
+
+*** Clean/onion/hexagonal (multi-rank)
+
+Subsystems wrap each other in concentric layers. Dependencies point
+inward. The dependency rule governs everything.
+
+- (+) Clear when applied to single-protocol systems
+- (+) Enforces technology independence at inner layers
+- (-) Communication layer wrapping is artificial for mixed-protocol
+- (-) Forces equivalent treatment of fundamentally different boundaries
+- (-) Feature changes touch every layer
+
+*** Actor-driven single-rank
+
+Subsystems sit at the same level. "Who drives the action" determines
+the flow direction. Communication is peer-to-peer via messages.
+
+- (+) Natural for mixed-protocol systems (HTTP + AMQP + DB)
+- (+) Feature changes touch one or two subsystems
+- (+) Erlang/Elixir primitives directly support it
+- (+) Choreography emerges naturally
+- (-) Requires explicit anti-spaghetti discipline
+- (-) Less obvious structure for newcomers (no layers to navigate)
+- (-) Debugging message flows is harder than tracing function calls
+
+*** Vertical Slice (feature-oriented)
+
+Each feature owns its full stack (handler → logic → storage). No
+shared layers.
+
+- (+) Feature isolation is maximum
+- (-) Code duplication across slices
+- (-) Doesn't address cross-cutting concerns well
+
+** Recommendation
+
+*** The "driver" heuristic for subsystem boundaries
+
+A subsystem boundary exists where *authorship of action changes*.
+
+Ask: "who is driving this action, and who is responding?"
+- The driver is the subsystem that decides WHAT happens
+- The responder is the subsystem that decides HOW to do it
+- The boundary is the message/call between them
+
+This produces a single-rank architecture where:
+- *Request handlers* (HTTP, AMQP) drive actions but own no logic
+- *Action/service layer* drives remote calls and storage
+- *Remote clients* (gateways) respond to action layer's requests
+- *Storage* responds to action layer's persistence requests
+
+All four sit at the same rank. No wrapping. Dependencies flow from
+driver to responder, never back.
+
+*** Anti-spaghetti rules
+
+Single-rank requires explicit discipline:
+
+1. *Unidirectional action flow:* for any pair of subsystems, one
+   drives and the other responds. If bidirectional communication
+   exists, it must be explicitly designed (reactive pipeline, not
+   implicit coupling).
+2. *Message contracts:* subsystems communicate via defined contracts
+   (typed interfaces, @specs, schemas). No raw maps crossing
+   subsystem boundaries.
+3. *State ownership:* each piece of state has exactly one owning
+   subsystem. Others read via queries or receive via events.
+4. *Supervision ≠ behavioral hierarchy:* Erlang supervision trees
+   manage lifecycle (restart, cleanup), not behavioral dependency.
+   A supervised actor is a behavioral peer.
+5. *No subsystem bypassing:* request handlers don't call gateways
+   directly. Action layer mediates all cross-boundary flows.
+
+*** Integration with three-role modules
+
+The three roles (communication/action/data) apply WITHIN each
+subsystem. The architecture question is about BETWEEN subsystems:
+
+| Level | Pattern | Determines |
+|-------|---------|-----------|
+| Architecture | Actor-driven single-rank | Where subsystem boundaries go |
+| Module | Three-role decomposition | How a subsystem is internally organized |
+| Code | Grepable naming | How individual files/functions are discoverable |
+
+These three levels synergize: actor boundaries make subsystems
+findable, role decomposition makes modules navigable, grepable
+naming makes code searchable.
+
+*** Applicability to existing codebases
+
+When refactoring toward actor-driven architecture:
+
+1. *Identify current actors:* which parts of the code "drive" and
+   which "respond"? Map the action flow.
+2. *Find boundary violations:* controllers calling gateways directly,
+   business logic in handlers, storage accessed without mediation.
+3. *Extract one boundary at a time:* don't restructure everything.
+   Fix the highest-impact violation first (usually: move logic out
+   of controllers into services).
+4. *Introduce message contracts at boundaries:* even if still using
+   function calls, define the interface as if it were a message.
+5. *Name subsystems by actor role:* "request_handler", "template_
+   service", "render_farm_client", "template_storage" — not by
+   technology ("http", "amqp", "postgres").
+
+** Decision
+
+All questions resolved.
+
+*** Subsystem naming: by actor role
+
+Directories named by actor role (=template_service=,
+=render_farm_client=, =template_storage=), not by technical
+convention (=services=, =gateways=). The existing "services" folder
+pattern is acknowledged as a mistake.
+
+*** Message contracts: typed structs/interfaces
+
+Messages MUST be formalized as structs (Elixir) or types/interfaces
+(TypeScript) at every subsystem boundary. When messages cross a
+runtime/protocol boundary (AMQP, HTTP), formalization uses data-
+level approaches (JSON Schema, OpenAPI).
+
+Reference examples in this project:
+- =src/platform/types/Services/Operation/index.ts= — well-typed
+  =OperationFn= call and related types
+- =src/definitions/types= and =src/compiler/types= — rigorous typing
+  covering almost everything non-scalar, re-typing strings and
+  numbers for readability/grepability
+
+*** Orchestration preferred for visibility
+
+Orchestration is preferred over choreography because:
+- Workflow is visible in one place (grepable)
+- Error handling is centralized (orchestrator decides retry/compensate)
+- The "driver" heuristic maps naturally: one actor owns the sequence
+
+While orchestration introduces a temporary hierarchy in action
+authoring, it retains single-rank at the "I don't care" level: as
+long as the protocol is fulfilled, no module knows about another
+module more than its communication protocol. The orchestrator is a
+peer that happens to drive the sequence.
+
+Choreography is appropriate when subsystems genuinely react
+independently with no single owner of the sequence.
+
+*** Separate ARCHITECTURE.md
+
+Architecture-level guidance goes in a dedicated =ARCHITECTURE.md=
+flow file, separate from =CODE-QUALITY.md= (module-level) and
+=DENOTE.md= (metadata). This creates a three-tier guidance stack:
+- =ARCHITECTURE.md= — subsystem boundaries, action flow, contracts
+- =CODE-QUALITY.md= — module roles, grepability, naming, testing
+- =DENOTE.md= — metadata, convergence, knowledge management
+
+** Open Questions
+
+All resolved.
