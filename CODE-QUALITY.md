@@ -402,10 +402,35 @@ checks whether the code encodes the domain's mental model:
 
 ---
 
+## Reference Projects
+
+These repos demonstrate the principles above in working code.
+Use them as style calibration sources alongside `git log --author`.
+
+**Elixir — [ceiling-ui](https://github.com/ivalentinee/ceiling-ui)**
+Phoenix/LiveView app controlling LED ceiling zones. Demonstrates:
+- Three-role module split: `Zones` (communication/supervision) →
+  `ZoneRunner` (action/GenServer) → `Render`, `State`, `Timer`
+  (data building)
+- Sub-module decomposition: `ZoneRunner.State` (struct + builders),
+  `ZoneRunner.Render` (async frame compilation),
+  `ZoneRunner.Render.Frame` (data struct)
+- Behaviour-based extensibility: `Generators.Behaviour` defines
+  `name/0`, `load/1`, `render/3`; `Generators.Collection` is the
+  registry
+- Ecto `embedded_schema` for validation without a database table
+  (`Scenes.Scene`)
+- ETS + File dual storage behind a single facade (`Scenes.Storage`)
+- Full alias form (`alias CeilingUI.Zones.ZoneRunner`, not
+  `alias CeilingUI.Zones.{ZoneRunner, ...}`)
+- Typed structs with `@enforce_keys`
+
+---
+
 ## Integration with Flows
 
-The implementation steps in all flows (Full Flow Step 9,
-Implementation Flow Step 2) include a "Style calibration" step
+The implementation steps in all flows (Full Flow Step 10) include
+a "Style calibration" step
 that references this file. The Style, Principles, and Code Clarity
 reviewers in the self-review phase check against these principles.
 The Code Clarity Reviewer (#9) specifically uses the "Self-Documenting

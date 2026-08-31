@@ -149,6 +149,7 @@ are flow-specific extensions.
 | `sub-feature`  | Sub-feature design                  |
 | `review`       | Review/audit artifact               |
 | `supporting`   | Repro cases, test plans             |
+| `prompt`       | Idea capture, pre-flow              |
 | `working`      | Ephemeral file in `-design/` dir    |
 | `fact`         | Atomic project knowledge entry      |
 
@@ -261,6 +262,11 @@ front matter and fixes stale cross-references.
 
 | Flow boundary      | Action                                               |
 |--------------------|------------------------------------------------------|
+| `prompt`           | Create file as `ID--title__prompt.org` with           |
+|                    | `#+filetags: :prompt:` — minimal, Prompt section only |
+| `hydrate`          | Transform prompt file in-place: `:prompt:` →          |
+|                    | `:design:` or `:research:`, add intake sections,      |
+|                    | rename file with new type keyword                     |
 | `init`             | Create file as `ID--title__type.org` with             |
 |                    | `#+filetags: :<type>:` (no status keyword yet)       |
 | `finalize` (design)| Working dir deletion first (existing flow behavior), |
@@ -396,6 +402,8 @@ All flows MUST use these exact `**` headings in design artifacts:
 | `** Convergence`           | Denote    |
 | `** Acceptance Criteria`   | Yes       |
 | `** Design`                | Yes       |
+| `*** Decisions`            | Yes       |
+| `*** Details`              | Yes       |
 | `** Sub-features`          | Yes       |
 | `** Known Deferred Work`   | Yes       |
 

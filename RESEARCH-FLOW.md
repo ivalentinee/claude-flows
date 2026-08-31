@@ -573,9 +573,9 @@ and add this research doc to the References field."
 
 | Command | Action |
 |---------|--------|
-| `research <question>` | **One-command start.** Derive topic name, create research doc with Question/Context inferred from the prompt, discover missing fields, and run the full flow (Steps 1–6). Pauses only for Critical escalations, inline convergence (when options are close), and user review. |
+| `research <question>` | **One-command start.** Derive topic name, create research doc with Question/Context inferred from the prompt, discover missing fields, and run the full flow (Steps 1–6). Pauses only for Critical escalations, inline convergence (when options are close), and user review. If targeting a prompt file (`:prompt:` tag in `designs/`), hydrate it into a research doc first (see FULL-FLOW.md Prompt Files). |
 | `init-research <topic>` | **Escape hatch.** Create `designs/<topic>.research.org` with the intake template and working directory. The user fills in fields manually, then runs `research` to start. Derives kebab-case filename (strip question words, noun phrases, max 3-4 words). |
-| `research` | **(no argument)** Resume or start the most recently initialized research. Infer topic from the most recent `.research.org` by modification time. If ambiguous, ask. |
+| `research` | **(no argument)** Resume or start the most recently initialized research. Infer topic from the most recent `.research.org` by modification time. Also checks for `:prompt:` files. If ambiguous, ask. |
 | `converge` | Interactive convergence process (Step 5a). Choose between options, rank results, or resolve trade-offs. Can be run multiple rounds. |
 | `finalize` | Run Step 6 — verify completeness, clean up working directory. |
 | `resume` | Detect current state from existing files, report in human-readable terms (see Session Resumption), and continue. |
@@ -733,8 +733,8 @@ remain. Next: I'll synthesize a comparison. Say `research` to
 continue."
 
 Detection logic:
-1. Scan `designs/` for `.research.org` files and `-research/`
-   working directories
+1. Scan `designs/` for `.research.org` files, `-research/`
+   working directories, and `:prompt:` files
 2. Read all existing files
 3. Determine phase:
    - Research doc exists, no working directory → just initialized

@@ -200,7 +200,17 @@ before designing. Pointers, not content.)
 These give the Completeness Verifier concrete checkpoints.)
 
 ** Design
-(Empty at init. Filled by the Author in Step 1.)
+
+*** Decisions
+(Empty at init. Filled by the Author in Step 1 — core choices,
+approach direction, trade-offs at overview level. No code samples
+or detailed architecture. Reviewed and approved by user before
+Details are developed.)
+
+*** Details
+(Empty at init. Filled by the Author in Step 6 — detailed
+architecture expanding approved Decisions. Interfaces, specs,
+data structures, code samples.)
 
 ** Sub-features
 (Empty at init. Populated with reference links as sub-features
@@ -213,6 +223,62 @@ are designed and finalized.)
 The Goal and Constraints fields directly shape Claude's autonomous
 decisions — they define what is in scope and what the feature should
 NOT do, reducing the need for Critical escalations.
+
+---
+
+## Prompt Files
+
+Sometimes you want to capture an idea without filling in the full
+intake template. A **prompt file** is a minimal artifact with just
+a `** Prompt` section — the lightest-weight entry point into the
+flow system.
+
+**Creating a prompt file:**
+- `prompt <idea>` command (see Commands)
+- The user creates one via Emacs `denote` or manually
+
+**Template:**
+
+```org
+#+STARTUP: overview
+#+title:      <Idea description>
+#+date:       [YYYY-MM-DD Day HH:MM]
+#+filetags:   :prompt:
+#+identifier: <YYYYMMDDTHHmmss>
+
+* <Idea description>
+
+** Prompt
+(Free-form description of the idea. Claude uses this to derive
+intake fields when a flow is started.)
+```
+
+Prompt files live in `designs/` alongside design and research docs.
+They follow denote naming: `ID--slug__prompt.org`.
+
+**Hydration.** When `full`, `design`, or `research` targets a prompt
+file (detected by `:prompt:` in `#+filetags:`), Claude transforms it
+into a proper intake document before running the flow:
+
+1. Read the `** Prompt` section content
+2. Add all missing intake sections (`** Original Prompt`,
+   `** Goal`, `** Constraints`, etc. for design; `** Question`,
+   `** Context`, etc. for research)
+3. Copy prompt content verbatim to `** Original Prompt`
+4. Infer and fill Goal/Question, Constraints/Scope, and other
+   intake fields from the prompt content + codebase context
+5. Update `#+filetags:` from `:prompt:` to `:design:` or
+   `:research:`
+6. Rename file to reflect new type keyword (denote rename procedure)
+7. Run convergence gate and proceed with the flow
+
+The prompt file is transformed in-place — it becomes the intake
+document rather than spawning a separate file.
+
+**Detection.** `resume` scans `designs/` for `:prompt:` files and
+reports them as ideas awaiting a flow. If `full` or `research` is
+run without a feature name and prompt files exist, list them and ask
+which to use.
 
 ---
 
@@ -256,29 +322,25 @@ so only top-level headings are visible by default in org-mode editors.
 
 ---
 
-## Phase 1: Design
+## Phase 1A: Design Decisions
 
-### Step 1 — Author
+### Step 1 — Author (Decisions)
 
 Launch an Author subagent. Read `designs/<feature>.org` (the intake
 doc — Goal, Constraints, References, Acceptance Criteria) and the
 relevant source files (including any files listed in References).
 
-Write into the **Design** section of `designs/<feature>.org` — the
-proposed design. **Documentation-first:** define behavior through
-formal specs (JSON Schema, OpenAPI, AsyncAPI, GraphQL schema, DB
-migration schemas) where applicable. Prefer declarative,
-machine-readable definitions over prose.
+Write into the `*** Decisions` subsection of `** Design` in
+`designs/<feature>.org` — the core choices, approach direction,
+patterns, and trade-offs. **Overview perspective only:** no code
+samples, no detailed interface definitions, no exhaustive data
+structures. Think "which direction and why," not "how exactly."
 
-**Eager decomposition:** Proactively look for opportunities to split
-the feature into independently implementable sub-features. If the
-feature spans multiple modules or has multiple independently
-verifiable outcomes, propose an overarching design with sub-feature
-references rather than a monolithic design. Each sub-feature gets
-its own `designs/<feature>/<sub-feature>.org` and goes through its
-own design → implement cycle. Do not decompose trivially small
-features — decompose when it makes reviews smaller and acceptance
-criteria more checkable.
+Decisions should cover:
+- Approach selection (which pattern, library, or strategy)
+- Boundary placement (which modules are affected, where new ones go)
+- Key trade-offs acknowledged (what is prioritized over what)
+- Decomposition proposal (sub-features, if applicable)
 
 Write `designs/<feature>-design/questions.org` — genuine unknowns.
 **Tag each item** with `[Critical]` or `[Auto]` per the Criticality
@@ -286,7 +348,7 @@ Classification. Items already answered by the intake's Goal,
 Constraints, or Acceptance Criteria should not become questions.
 
 Initialize `designs/<feature>-design/journal.org` with an
-"Iteration 1 — Author" entry.
+"Iteration 1 — Author (Decisions)" entry.
 
 ### Step 2 — Critic + Boundary Analyst + Steward (parallel)
 
@@ -316,16 +378,16 @@ questions, and the same source files.
 **Steward subagent (S1 — intent check):**
 - Re-read the intake (Original Prompt, Steering log, Goal,
   Constraints, Acceptance Criteria, Preserved Invariants) and compare
-  against the Author's Design.
-- Check: "If this design were implemented as proposed, would it
-  solve the problem described in Goal? Is every Constraint honored?
-  Is every Acceptance Criterion addressed?"
+  against the Author's Decisions.
+- Check: "If these decisions were carried forward, would the
+  resulting design solve the problem described in Goal? Is every
+  Constraint honored? Is every Acceptance Criterion addressable?"
 - Output one of:
   - *Pass:* design aligns with intake. (No action.)
   - *Drift:* specific divergence added to `criticism.org` tagged
     `[Critical]` with `*Source:* Steward (intent check)`.
   - *Annotation:* note in `journal.org` tracking observed evolution.
-- **Self-contradiction check:** before comparing design vs intake,
+- **Self-contradiction check:** before comparing decisions vs intake,
   check whether the Steering log contradicts the Original Prompt.
   If the user's steering overrides their own original intent, flag
   this explicitly so the decision is conscious: "Your steering at
@@ -343,7 +405,7 @@ Process all `[Auto]`-tagged items in `questions.org` and
 For each item:
 1. Decide on a resolution based on codebase context, design
    constraints, and established patterns
-2. Update the design doc to reflect the decision
+2. Update the Decisions subsection to reflect the decision
 3. Move the item to `resolved.org` with `*Rationale:*` and
    `*Resolved by:* Claude (auto)` annotation
 4. If resolving one item creates a new question or concern, add it
@@ -351,14 +413,14 @@ For each item:
 
 After processing, report the net change: "Auto-resolved N items.
 M Critical items remain for user input." (or "0 Critical items —
-design is self-consistent.")
+decisions are self-consistent.")
 
 ### Step 4 — Auto-loop (up to 3 iterations)
 
 After auto-resolving, launch Critic + Boundary Analyst re-evaluation
-(parallel) — same as the original Design flow step 3c:
+(parallel):
 
-**Critic re-evaluation:** reads its context, updated design,
+**Critic re-evaluation:** reads its context, updated decisions,
 resolved archive, journal. Moves genuinely resolved concerns out,
 adds new concerns (tagged), updates patterns, appends journal entry.
 Escalates blocking concerns unaddressed for 2+ iterations.
@@ -378,7 +440,7 @@ feature may need splitting.
 
 **Steward check (S2 — post-auto-resolve intent check).** After the
 final auto-resolve iteration, run the Steward: re-read the intake
-and compare against the current design state. This is the
+and compare against the current decisions. This is the
 highest-value single intervention point — auto-resolve loops are
 where most intent drift accumulates (each resolution is individually
 reasonable but the aggregate can shift direction). Output goes to
@@ -396,14 +458,14 @@ If any `[Critical]` items remain:
    one-line description and why it needs user input
 3. **Wait for user** to fill in `answers.org`
 
-If zero Critical items remain, skip directly to Step 6.
+If zero Critical items remain, skip directly to Step 5b.
 
 ### Step 5a — Process user answers
 
 When the user provides answers:
 
-1. **Apply answers** — update design doc, move resolved items to
-   `resolved.org`
+1. **Apply answers** — update Decisions subsection, move resolved
+   items to `resolved.org`
 2. **Validator subagent** — check answers for vagueness,
    contradictions, implicit new questions, AND constraint
    violations. The Validator also reads Original Prompt,
@@ -413,9 +475,103 @@ When the user provides answers:
 3. **Critic + Boundary Analyst re-evaluation** (parallel)
 4. Auto-resolve any new `[Auto]` items
 5. If new `[Critical]` items emerged, return to Step 5
-6. If converged, proceed to Step 6
+6. If converged, proceed to Step 5b
 
-### Step 6 — Design review (MANDATORY)
+### Step 5b — Decision review (MANDATORY)
+
+Present the `*** Decisions` section to the user. This is a
+**mandatory pause** — even when the user has asked to skip user
+review (which applies to implementation Steps 13–14 only).
+
+The review focuses on direction: the user verifies the core choices,
+approach, trade-offs, and decomposition are correct before detailed
+design work begins. This is intentionally easier to review than the
+full design — no code samples, no interface definitions, just the
+"what and why" of each choice.
+
+The user may:
+- **Approve** decisions as-is → proceed to Phase 1B (Step 6)
+- **Amend** specific decisions → apply changes, re-run Critic on
+  affected decisions (return to Step 3)
+- **Reject and redirect** → Author rewrites decisions (return to
+  Step 1)
+
+Approved decisions are **locked** for Phase 1B. The Details phase
+cannot change decisions without explicit user escalation.
+
+---
+
+## Phase 1B: Design Details
+
+### Step 6 — Author (Details)
+
+Launch an Author subagent. Read the approved `*** Decisions`, the
+intake doc, and the relevant source files.
+
+Write into the `*** Details` subsection of `** Design` — the
+detailed architecture that implements the approved decisions.
+**Documentation-first:** define behavior through formal specs
+(JSON Schema, OpenAPI, AsyncAPI, GraphQL schema, DB migration
+schemas) where applicable. Prefer declarative, machine-readable
+definitions over prose.
+
+Details should cover:
+- Interface definitions (function signatures, type shapes, contracts)
+- Data structures and schemas
+- Implementation approach per module
+- Error handling strategy
+- Formal specs where applicable
+- Code samples where they clarify intent
+
+**Eager decomposition:** If the Decisions proposed sub-features,
+create their design docs now:
+`designs/<feature>/<sub-feature>.org` with their own intake
+templates. Each sub-feature goes through its own design → implement
+cycle. Do not decompose trivially small features.
+
+Write new questions to `questions.org` (tagged). **Decisions are
+locked** — questions must be about detail choices, not about
+revisiting decisions. Any concern that would require changing an
+approved decision is tagged `[Critical]` with
+`*Note:* Requires reopening decisions`.
+
+Append journal entry: "Author (Details)".
+
+### Step 6a — Critic + Boundary Analyst (details scope)
+
+Launch Critic + Boundary Analyst in parallel, scoped to details
+quality. **Decisions are locked** — critics must not re-litigate
+approved decisions.
+
+**Critic subagent:**
+- Update `criticism.org` with detail-level concerns (tagged).
+- Update `critic-context.org`.
+- Concerns that would change an approved decision are tagged
+  `[Critical]` with `*Note:* Requires reopening decisions`.
+- Append journal entry.
+
+**Boundary Analyst subagent:**
+- Update `boundary-context.org` with detail-level observations.
+- Append journal entry.
+
+### Step 6b — Auto-resolve on details
+
+Same auto-resolve pattern as Steps 3–4, with lighter touch:
+- Max **2** iterations (details should converge quickly with locked
+  decisions)
+- Items that would change a decision are NOT auto-resolved — they
+  remain `[Critical]`
+
+If `[Critical]` items remain:
+- Items tagged "Requires reopening decisions" → escalate to user
+  with explicit note: "This detail concern affects an approved
+  decision. Reopening decisions requires your approval."
+  If approved, return to Step 5b with the concern.
+- Other `[Critical]` items → create/update `answers.org`, escalate
+  to user, process answers (same as Step 5/5a pattern), then
+  continue.
+
+### Step 7 — Design review (MANDATORY)
 
 This step is **not optional**, even when the user has asked to skip
 user review. It must be orchestrated from the **main conversation**,
@@ -439,19 +595,45 @@ Additionally, include the **UX Reachability & Visual Quality Reviewer**
 Each reviewer produces a structured report with severity ratings
 (Critical / High / Medium / Low / Info).
 
+**Reviewer context:** Decisions are approved by the user — reviewers
+evaluate whether details faithfully implement those decisions and
+whether the details are sound. A reviewer may note that a decision
+creates a problem, but this is flagged as `[Critical]` with
+`*Note:* Requires reopening decisions`, not auto-resolved.
+
 **Processing review findings:**
 - `[Auto]`-level findings (High and below): Claude fixes the design
   immediately, documents in `resolved.org`
-- `[Critical]`-level findings: escalate to user (return to Step 5)
+- `[Critical]`-level findings about details: escalate to user
+  (return to Step 6b)
+- `[Critical]`-level findings requiring decision changes: escalate
+  to user with reopening note (return to Step 5b if approved)
 - If review introduced design changes: run one more Critic +
   Boundary Analyst re-evaluation, then re-check convergence
 
 After the review is clean (no Critical findings, all High+ addressed),
 run **Steward check (S3)**: did addressing reviewer findings shift
 the design's scope away from the original intake? If drift detected,
-return to Step 5 (escalate). Otherwise proceed to Step 7.
+escalate to user. Otherwise proceed to Step 7a.
 
-### Step 7 — Finalize design
+### Step 7a — Detail review (MANDATORY)
+
+Present the full `** Design` section (both `*** Decisions` and
+`*** Details`) to the user. Since decisions were already approved
+in Step 5b, this review focuses on **detail quality**: interfaces,
+specs, data structures, and implementation approach.
+
+This is a **mandatory pause** — even when the user has asked to
+skip user review (which applies to implementation Steps 13–14 only).
+
+The user may:
+- **Approve** details → proceed to Step 8 (finalize)
+- **Request amendments** → apply changes, re-run Critic on affected
+  details (return to Step 6b)
+- **Flag a decision concern** → this reopens decisions (return to
+  Step 5b with the concern)
+
+### Step 8 — Finalize design
 
 **For root features:**
 
@@ -480,7 +662,7 @@ return to Step 5 (escalate). Otherwise proceed to Step 7.
 3. **Verifier + clean up** — same as root features, but for the
    sub-feature's working directory.
 
-**Step 7d — Context Maintenance subagent.** Check whether design
+**Step 8d — Context Maintenance subagent.** Check whether design
 decisions affect project context documented in CLAUDE.md:
 - New modules or directories → update Key Directories
 - Changed data flow or architecture → update relevant sections
@@ -498,12 +680,12 @@ flag this for the user.
 
 ## Phase 2: Implementation
 
-### Step 8 — Plan
+### Step 9 — Plan
 
 Two sequential subagents produce `impl-plan.org` in the working
 directory:
 
-**Step 8a — Module Relationship subagent.** Read finalized design +
+**Step 9a — Module Relationship subagent.** Read finalized design +
 existing codebase. Write section 1 of `impl-plan.org`:
 
 ```org
@@ -534,12 +716,12 @@ direct call, PubSub, message queue, ETS.)
 The Module Relationship subagent does NOT sequence work — it
 describes the topology.
 
-**Step 8b — Plan subagent.** Read module relationships + finalized
+**Step 9b — Plan subagent.** Read module relationships + finalized
   design. Write section 2:
 - Step order, parallel opportunities, integration checkpoints,
   formal specs to produce first
 
-**Step 8c — Commit staging.** Structure the plan into blame-friendly
+**Step 9c — Commit staging.** Structure the plan into blame-friendly
 atomic commits. The atom is one **complete concept**, not one
 mechanical operation. First question for every commit boundary:
 "will `git blame` in one year show WHY this code exists?"
@@ -578,7 +760,7 @@ section 3:
 3. Event-driven dispatch: error recovery (impl + tests)
 ```
 
-### Step 9 — Implement
+### Step 10 — Implement
 
 **Style calibration:** Before writing code, sample the user's recent
 commits (`git log --author` + read 1-2 touched files) to calibrate
@@ -604,10 +786,10 @@ Run the project's test/lint suite (`mix paranoid`) after each commit.
 run a lightweight Abstraction Minimalist subagent on newly
 written/modified functions. Fix clear tier violations immediately.
 
-### Step 10 — Self-review (MANDATORY)
+### Step 11 — Self-review (MANDATORY)
 
 This step is **not optional**, even when the user has asked to skip
-user review (Steps 12-13). It must be orchestrated from the **main
+user review (Steps 13–14). It must be orchestrated from the **main
 conversation** — a single delegated subagent cannot launch 8 parallel
 reviewers. When implementation is delegated to a subagent, return
 control to the main conversation before running this step.
@@ -637,7 +819,7 @@ Findings that make empirical claims ("this will cause X") without
 evidence are downgraded to Info. Structural observations ("this
 module has mixed concerns") do not require empirical evidence.
 
-**Step 10b — Review Collator.** Launch a Review Collator subagent
+**Step 11b — Review Collator.** Launch a Review Collator subagent
 that reads all 9 reviewer reports and produces a consolidated
 `review.org`. The collator:
 
@@ -659,7 +841,7 @@ It does NOT evaluate quality or make judgment calls. It is a
 mechanical post-processor that saves the main conversation from
 parsing 9 independent reports.
 
-### Step 11 — Fix
+### Step 12 — Fix
 
 Read `review.org`. For each issue:
 - Fixable: apply the fix
@@ -677,7 +859,7 @@ Design Fidelity Reviewer validated the implementation against a
 design that itself had drifted. If drift detected, report to user
 alongside the review plan.
 
-### Step 12 — Review plan + review notes
+### Step 13 — Review plan + review notes
 
 Create `review-plan.org` and `review-notes.org` in the working
 directory.
@@ -696,15 +878,15 @@ directory.
 Present both files to the user. **Wait for user** to fill in
 `review-notes.org`.
 
-### Step 13 — User review loop
+### Step 14 — User review loop
 
-**Step 13a — Apply fixes.** For each note in `review-notes.org`:
+**Step 14a — Apply fixes.** For each note in `review-notes.org`:
 - Apply the fix
 - Move to `review-notes-resolved.org` with `**Resolved:**` subsection
 
 **Trailing Abstraction Minimalist check** on changed functions.
 
-**Step 13b — Fix Validator subagent.** Check:
+**Step 14b — Fix Validator subagent.** Check:
 - Did each fix address its review note?
 - Did any fix introduce new issues or regressions?
 - Do changes still match the finalized design?
@@ -712,7 +894,7 @@ Present both files to the user. **Wait for user** to fill in
   Constraints, Acceptance Criteria, Preserved Invariants)? If a
   user-requested fix violates an original constraint, flag it.
 
-**Step 13c — Update review plan.** Update `review-plan.org`:
+**Step 14c — Update review plan.** Update `review-plan.org`:
 - Modified files: uncheck, update description to latest change only
 - Unmodified files: keep existing check state
 - New files: add to appropriate section
@@ -721,9 +903,9 @@ Present both files to the user. **Wait for user** to fill in
 Re-run `mix paranoid`.
 
 If `review-notes.org` has unresolved notes, prompt **`loop`**.
-If all resolved, proceed to Step 13d.
+If all resolved, proceed to Step 14d.
 
-**Step 13d — Pattern capture.** Review all resolved corrections in
+**Step 14d — Pattern capture.** Review all resolved corrections in
 `review-notes-resolved.org`. For each correction, evaluate:
 
 1. Is this a project convention or a one-off mistake? (one-off → skip)
@@ -744,37 +926,37 @@ Format for memory entries:
 ```
 
 This is a lightweight trailing check, not a gate — it does not block
-progression. Proceed to Step 14.
+progression. Proceed to Step 15.
 
-### Step 14 — Finalize implementation
+### Step 15 — Finalize implementation
 
-**Step 14a — Completeness Verifier subagent.** Check:
+**Step 15a — Completeness Verifier subagent.** Check:
 - Does implementation cover every design aspect?
 - Are there partially implemented requirements?
 - Are all formal specs present in the codebase?
 - Do all tests pass and cover key behaviors?
 
-If gaps found: report to user, return to Step 13 if user wants to
+If gaps found: report to user, return to Step 14 if user wants to
 address them now, or document as deferred.
 
-**Step 14b — Context Maintenance subagent.** Check whether the
+**Step 15b — Context Maintenance subagent.** Check whether the
 implementation changed anything documented in CLAUDE.md:
 - New modules or directories → update Key Directories
 - New data flow patterns → update Data Flow section
 - New environment variables → update Environment Variables
 - New project-specific conventions → update Conventions
 
-Same rules as Step 7d: update project context only, not process
+Same rules as Step 8d: update project context only, not process
 instructions. CLAUDE.md changes appear in review-plan.org if the
 user hasn't reviewed yet, or are visible in the commit diff.
 
-**Step 14c — Clean up.** Delete the entire working directory
+**Step 15c — Clean up.** Delete the entire working directory
 (`designs/<feature>-design/` or the sub-feature equivalent). The
 design doc remains as the permanent record.
 
-### Step 15 — Commit
+### Step 16 — Commit
 
-Follow the commit staging plan from Step 8c. Create each commit
+Follow the commit staging plan from Step 9c. Create each commit
 as a separate, atomic unit with its own goal. Stage files precisely
 per commit — do not batch everything into one commit unless the
 staging plan has a single entry. Each commit should compile and pass
@@ -787,13 +969,14 @@ convention.
 
 | Command | Action |
 |---------|--------|
+| `prompt <idea>` | Create a prompt-only file in `designs/` (see Prompt Files). If `<idea>` text is provided, pre-populate the Prompt section; otherwise leave it empty for the user to fill in. |
 | `init <name-or-description>` | Create `designs/<feature>.org` with the intake template and `designs/<feature>-design/` directory. Derives kebab-case filename (strip filler words, noun phrases, max 3-4 words). Does not start the flow — the user fills in the intake fields first. |
-| `full [<feature-name>]` | Start from Step 1. Reads the intake doc, then runs through all phases automatically, pausing only for Critical escalations (Step 5) and user review (Step 12). If `<feature-name>` is omitted, infer from the most recently initialized or active feature. |
-| `design [<feature-name>]` | Run Phase 1 only (Steps 1–7). Stops after design finalization. Use when the user wants to design without implementing. |
-| `implement [<feature-name>]` | Run Phase 2 only (Steps 8–15). Requires a finalized design doc. Use when design was done separately or already exists. |
-| `loop` | In design phase: process `answers.org` (Step 5a). In implementation phase: process `review-notes.org` (Step 13). **Cumulative drift check:** re-read ALL Steering entries, check aggregate drift against Original Prompt. |
-| `finalize` | In design phase: run Step 7. In implementation phase: run Step 14. **Cumulative drift check** before finalizing. |
-| `commit` | Run Step 15. |
+| `full [<feature-name>]` | Start from Step 1. Reads the intake doc, then runs through all phases automatically, pausing for Critical escalations (Step 5), decision review (Step 5b), detail review (Step 7a), and implementation review (Step 13). If targeting a prompt file, hydrate it first (see Prompt Files). If `<feature-name>` is omitted, infer from the most recently initialized or active feature. |
+| `design [<feature-name>]` | Run Phase 1 only (Steps 1–8). Stops after design finalization. If targeting a prompt file, hydrate it first. |
+| `implement [<feature-name>]` | Run Phase 2 only (Steps 9–16). Requires a finalized design doc. Use when design was done separately or already exists. |
+| `loop` | In design phase: process `answers.org` (Step 5a). In implementation phase: process `review-notes.org` (Step 14). **Cumulative drift check:** re-read ALL Steering entries, check aggregate drift against Original Prompt. |
+| `finalize` | In design phase: run Step 8. In implementation phase: run Step 15. **Cumulative drift check** before finalizing. |
+| `commit` | Run Step 16. |
 | `resume` | Detect current state from existing files + git status, report where we are, and continue from the appropriate step. |
 | `retro` | Post-completion retrospective (3-5 bullets, no files created). |
 
@@ -864,16 +1047,26 @@ Report state in **human-readable terms** — what was found and
 what happens next, never step numbers. The user should not need
 to know the flow's internal structure.
 
-1. Scan `designs/` for feature docs and working directories
+1. Scan `designs/` for feature docs, working directories, and
+   prompt files (`:prompt:` tagged)
 2. Read all existing files for the feature
 3. Check git status/diff for code changes
 4. Determine phase and step:
+   - Prompt file exists (`:prompt:` tag) → idea captured, not yet
+     started. Suggest `full` or `research` to hydrate and run.
    - Design doc exists, no `-design/` directory → just initialized,
      user may still be filling intake. Ask or run `full`.
-   - `-design/` exists with design files, no impl files → Design phase
-   - `impl-plan.org` exists, no code changes → Step 9 (implement)
-   - Code changes exist, no review files → Step 10 (self-review)
-   - `review-notes.org` has content → Step 13 (user review loop)
+   - `-design/` exists, `*** Decisions` empty → Step 1 (author
+     decisions)
+   - `-design/` exists, `*** Decisions` filled, `*** Details` empty
+     → decisions written, check for pending review (Step 5b) or
+     ready for details (Step 6)
+   - `-design/` exists, `*** Details` filled, no impl files →
+     details written, check for pending review (Step 7a) or
+     ready for finalize (Step 8)
+   - `impl-plan.org` exists, no code changes → Step 10 (implement)
+   - Code changes exist, no review files → Step 11 (self-review)
+   - `review-notes.org` has content → Step 14 (user review loop)
    - `answers.org` has content → Step 5a (process answers)
 5. Report current state and continue
 
@@ -882,13 +1075,18 @@ to know the flow's internal structure.
 ## Flow Diagram
 
 ```
+  prompt ──► designs/<slug>__prompt.org (idea only)
+       │
+       ▼ (user fills prompt, later runs `full` or `research`)
+       │ (hydration: prompt → intake doc, in-place)
+
   init ──► designs/<feature>.org (intake template)
        ──► designs/<feature>-design/ (working dir)
        │
        ▼ (user fills intake, then runs `full`)
 
-Phase 1: Design
-  Step 1: Author (reads intake) ───────────────────┐
+Phase 1A: Design Decisions
+  Step 1: Author (Decisions) ──────────────────────┐
   Step 2: Critic + Boundary Analyst + Steward S1 ──┤
   Step 3: Auto-resolve [Auto] items ────────────────┤
   Step 4: Auto-loop (up to 3x) ◄───────────────────┘
@@ -903,27 +1101,48 @@ Phase 1: Design
        │                                             │
        ◄─────────────────────────────────────────────┘
        │
-  Step 6: Design review (MANDATORY, 7 reviewers)
+  Step 5b: Decision review ──► wait for user
+       │ (MANDATORY — user approves direction)
+       │
+       ├─ Amend ──► return to Step 3
+       └─ Approve
+       │
+       ▼
+
+Phase 1B: Design Details
+  Step 6: Author (Details) ────────────────────────┐
+  Step 6a: Critic + Boundary Analyst (details) ────┤
+  Step 6b: Auto-resolve on details (up to 2x) ◄───┘
+       │
+  Step 7: Design review (MANDATORY, 7 reviewers)
        │ + Steward S3 (intent check after review)
        │
-       ├─ Critical findings ──► Step 5 (escalate)
+       ├─ Critical findings (details) ──► Step 6b
+       ├─ Critical findings (decisions) ──► Step 5b
        └─ Clean
        │
-  Step 7: Finalize design (delete -design/, keep .org)
+  Step 7a: Detail review ──► wait for user
+       │ (MANDATORY — user approves details)
+       │
+       ├─ Amend ──► return to Step 6b
+       ├─ Decision concern ──► return to Step 5b
+       └─ Approve
+       │
+  Step 8: Finalize design (delete -design/, keep .org)
        │
        ▼ (automatic — no pause, recreates -design/ for impl)
 
 Phase 2: Implementation
-  Step 8: Plan (module relationships + build order)
-  Step 9: Implement + tests + mix paranoid
-  Step 10: Self-review (MANDATORY, 9 reviewers)
-  Step 10b: Review Collator (dedup + severity + conflicts)
-  Step 11: Fix + mix paranoid
+  Step 9: Plan (module relationships + build order)
+  Step 10: Implement + tests + mix paranoid
+  Step 11: Self-review (MANDATORY, 9 reviewers)
+  Step 11b: Review Collator (dedup + severity + conflicts)
+  Step 12: Fix + mix paranoid
        │ + Steward S4 (intent check before user review)
-  Step 12: Review plan + notes ──► wait for user
-  Step 13: User review loop ◄──── loop until clean
-  Step 14: Finalize implementation (delete -design/)
-  Step 15: Commit
+  Step 13: Review plan + notes ──► wait for user
+  Step 14: User review loop ◄──── loop until clean
+  Step 15: Finalize implementation (delete -design/)
+  Step 16: Commit
 ```
 
 ---

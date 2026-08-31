@@ -21,9 +21,10 @@ toward it rather than handling the task ad-hoc in chat.
 |------|---------|-------------|
 | **Research** | `research <question>` | Explore approaches, find examples, compare options before deciding |
 | **Dialog** | `dialog <topic>` | Synchronous discussion to reach a specific decision |
-| **Design only** | `init <feature>` → `design` | Design phase only (Steps 1–7 of Full Flow) |
+| **Design only** | `init <feature>` → `design` | Design phase only (Steps 1–8 of Full Flow) |
 | **Full** | `init <feature>` → `full` | Design + implement end-to-end, Claude-autonomous |
-| **Implement only** | `implement <feature>` | Implementation phase only (Steps 8–15, design exists) |
+| **Implement only** | `implement <feature>` | Implementation phase only (Steps 9–16, design exists) |
+| **Prompt** | `prompt <idea>` | Capture an idea for later — not a flow, just a file |
 
 `design` and `implement` are entry points into the Full Flow's
 phases — same steps, same quality gates, same Steward checks.
@@ -37,6 +38,7 @@ Ask yourself one question: **do I know what to build?**
 - **Roughly, but need to flesh out the design** → `design`
 - **Yes, and I want Claude to handle design + code** → `full`
 - **Yes, and the design doc already exists** → `implement`
+- **I just want to capture an idea for later** → `prompt`
 
 ## Guided Selection
 
@@ -100,6 +102,7 @@ When presenting flow options to the user, use this compact format:
 
 ```
 Available flows:
+  prompt <idea>        — capture an idea for later
   research <question>  — explore approaches, compare options
   dialog <topic>       — discuss to reach a specific decision
   full <feature>       — design + implement, Claude-autonomous
